@@ -13,8 +13,5 @@ with open(sys.argv[1]) as data_file:
 
 #pprint(data)
 
-i=0
-while True:
-    xss=XSS(data)
-    xss.fuzz()
-    break
+xss=XSS(data)
+xss.fuzz()

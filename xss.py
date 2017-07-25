@@ -13,8 +13,8 @@ class XSS:
     def fuzz(self):
         i=0
         while i<len(self.requests):
-            if self.requests[i]['requestId']>self.reached_id:
-                self.reached_id=self.requests[i]['requestId']
+            if int(self.requests[i]['requestId'])>self.reached_id:
+                self.reached_id=int(self.requests[i]['requestId'])
                 print self.requests[i]['url']+' '+self.requests[i]['method']
                 if self.requests[i]['method']=='GET':
                     for param in parse_qs(urlparse(self.requests[i]['url']).query):
@@ -34,18 +34,22 @@ class XSS:
             try:
                 index2=url[index:].index('&')
                 if index2!=-1:
-                    return url[0:index]+newValue+url[index2:]
+                    return url[0:index]+newValue+url[index+index2:]
             except:
                 return url[0:index]+newValue
 
     def catchUp(self, s):
         i=0
+        #print "len: "+str(len(self.requests))
+        print self.reached_id
         while int(self.requests[i]['requestId'])<self.reached_id:
+            print str(int(self.requests[i]['requestId']))
             if self.requests[i]['method']=='GET':
-                print s.get(self.requests[i]['url']).text.encode('utf-8')
+                pass #print s.get(self.requests[i]['url']).text.encode('utf-8')
             elif self.requests[i]['method']=='POST':
-                print s.post(self.requests[i]['url'],requests=self.requests[i]['requestBody']).text.encode('utf-8')
-            i+=1
+                pass #print s.post(self.requests[i]['url'],requests=self.requests[i]['requestBody']).text.encode('utf-8')
+            i+=2
+            #print i
 
 
     def test(self, method, url, param):
@@ -60,4 +64,4 @@ class XSS:
         print "##################"
         print newUrl
         print "##################"
-        #print param
+        print param
