@@ -78,3 +78,6 @@ class XSS:
             self.catchUp(s)
             response = s.post(url,params=newPost).text.encode('utf-8')
             XSS.verify(response)
+            print "##################"
+            print newPost
+            print "##################"

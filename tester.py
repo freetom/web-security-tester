@@ -5,6 +5,7 @@ import sys
 #local imports
 from xss import XSS
 
+# should test for XSS,SQLI,open-redirect
 if len(sys.argv) < 2:
     sys.exit('Usage: %s input_trace' % sys.argv[0])
 
