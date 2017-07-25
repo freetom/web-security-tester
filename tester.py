@@ -8,7 +8,7 @@ from xss import XSS
 if len(sys.argv) < 2:
     sys.exit('Usage: %s input_trace' % sys.argv[0])
 
-with open('/home/tomas/Scaricati/web-trace.json') as data_file:
+with open(sys.argv[1]) as data_file:
     data = json.load(data_file)
 
 #pprint(data)
@@ -17,3 +17,4 @@ i=0
 while True:
     xss=XSS(data)
     xss.fuzz()
+    break
