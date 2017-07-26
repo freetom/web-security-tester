@@ -1,15 +1,24 @@
 import requests
 import copy
 from urlparse import *
+from xss_hints import hints
+
 import re
 
 class XSS:
     requests=[]
+    GET_params={}
+    GET_hints={}
+    POST_params={}
     reached_id=0
     s=None
     inj1='<js>'
     def __init__(self,reqs):
         self.requests= copy.deepcopy(reqs)
+        for request in self.requests:
+            self.GET_params[request['requestId']]=parse_qs(urlparse(request['url']).query)
+            if request['method']=='POST':
+                self.POST_params[request['requestId']]=request['requestBody']
     def fuzz(self):
         i=0
         while i<len(self.requests):
@@ -40,6 +49,7 @@ class XSS:
             except:
                 return url[0:index]+newValue
 
+    # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
         i=0
         #print "len: "+str(len(self.requests))
@@ -57,6 +67,8 @@ class XSS:
     def verify(response):
         if XSS.inj1 in response:
             print "XSS found !!"
+            return True
+        return False
 
     def test(self, method, url, param,postData=None):
         s = requests.Session()
@@ -65,13 +77,14 @@ class XSS:
             #text=res.text.encode('utf-8')
             newUrl = XSS.substParam(url,param,XSS.inj1)
             self.catchUp(s)
-            response = s.get(newUrl).text.encode('utf-8')
-            XSS.verify(response)
+            response = s.get(newUrl,verify=False).text.encode('utf-8')
+            if XSS.verify(response):
+                print "PARAM: "+param
 
-            print "##################"
+            """print "##################"
             print newUrl
             print "##################"
-            print param
+            print param"""
         elif method=='POST':
             newPost=copy.deepcopy(postData)
             newPost['formData'][param]=XSS.inj1
