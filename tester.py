@@ -1,8 +1,6 @@
 import json
-from pprint import pprint
-from urlparse import urlparse, parse_qs
 import sys
-#local imports
+
 from xss import XSS
 
 # should test for XSS,SQLI,open-redirect

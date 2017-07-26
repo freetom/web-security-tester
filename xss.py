@@ -1,7 +1,7 @@
 import requests
 import copy
 from urlparse import *
-from xss_hints import hints
+from xss_hints import *
 
 import re
 
@@ -15,12 +15,39 @@ class XSS:
     inj1='<js>'
     def __init__(self,reqs):
         self.requests= copy.deepcopy(reqs)
+        skip=False  # to skip the headers . . . because every
         for request in self.requests:
+            if skip:
+                skip=False
+                continue
             self.GET_params[request['requestId']]=parse_qs(urlparse(request['url']).query)
             if request['method']=='POST':
                 self.POST_params[request['requestId']]=request['requestBody']
+            skip=True
+
+    def estimate_effort(self):
+        requests=0
+        old_max=0
+        i=0
+        while i<len(self.requests):
+            requests+=len(self.GET_params[self.requests[i]['requestId']])
+            if self.requests[i]['method']=="POST":
+                requests+=len(self.POST_params[self.requests[i]['requestId']])+old_max
+            old_max=requests
+            i+=2
+        requests+=len(self.requests)/2 #count also the requests needed to probe
+        #   divide by two because every request is two elements (params and headers)
+        print "Exactly "+str(requests)+" needed to fuzz.."
+
     def fuzz(self):
+        self.estimate_effort()
+        self.probe()    #probe normally to get hints on possible injections
+        return
+        skip=False
         for request in self.requests:
+            if skip:
+                skip=False
+                continue
             self.reached_id=int(request['requestId'])
             print request['url']+' '+request['method']
             if request['method']=='GET':
@@ -33,8 +60,7 @@ class XSS:
                         #print param
                         self.test('POST',request['url'],param,request['requestId'],request['requestBody'])
                         #print s.post(requests[i]['url'],requests=requests[i]['requestBody']).text.encode('utf-8')
-            i+=2    # 2 because we want to skip the element that contains the recorded headers
-
+            skip=True
 
     @staticmethod
     def substParam(url,name,newValue):
@@ -54,21 +80,28 @@ class XSS:
             val=""
             index=url.index(param)+len(param)+1
             while index<(len(url)):
-                if url[index]=='&'
+                if url[index]=='&':
                     break
                 val+=url[index]
+                index+=1
             return val
         except:
             raise ValueError('Param not in URL')
+
     def probe(self):
-        s = request.Session()
+        print "probing.."
+        s = requests.Session()
         i=0
         while i<len(self.requests):
-            if request['method']=='GET':
-                response=s.get(request['url']).text.encode('utf-8')
-                for param in parse_qs(urlparse(request['url']).query):
-                    GET_hints[request['requestId']]=parseXSS(response,parseGETVal(request['url'],param))
+            if self.requests[i]['method']=='GET':
+                response=s.get(self.requests[i]['url']).text.encode('utf-8')
+                for param in parse_qs(urlparse(self.requests[i]['url']).query):
+                    self.GET_hints[self.requests[i]['requestId']]=parseXSS(response,XSS.parseGETVal(self.requests[i]['url'],param))
             i+=2    #skip headers
+        for hint in self.GET_hints:
+            if self.GET_hints[hint]!=1:
+                print 'got hint'
+
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
         i=0
