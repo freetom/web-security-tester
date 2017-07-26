@@ -20,19 +20,18 @@ class XSS:
             if request['method']=='POST':
                 self.POST_params[request['requestId']]=request['requestBody']
     def fuzz(self):
-        i=0
-        while i<len(self.requests):
-            self.reached_id=int(self.requests[i]['requestId'])
-            print self.requests[i]['url']+' '+self.requests[i]['method']
-            if self.requests[i]['method']=='GET':
-                for param in parse_qs(urlparse(self.requests[i]['url']).query):
-                    self.test('GET',self.requests[i]['url'],param)
+        for request in self.requests:
+            self.reached_id=int(request['requestId'])
+            print request['url']+' '+request['method']
+            if request['method']=='GET':
+                for param in self.GET_params[request['requestId']]:
+                    self.test('GET',request['url'],param,request['requestId'])
                 #print s.get(requests[i]['url']).text.encode('utf-8')
-            elif self.requests[i]['method']=='POST':
-                if 'formData' in self.requests[i]['requestBody']:
-                    for param in self.requests[i]['requestBody']['formData']:
+            elif request['method']=='POST':
+                if 'formData' in request['requestBody']:
+                    for param in request['requestBody']['formData']:
                         #print param
-                        self.test('POST',self.requests[i]['url'],param,self.requests[i]['requestBody'])
+                        self.test('POST',request['url'],param,request['requestId'],request['requestBody'])
                         #print s.post(requests[i]['url'],requests=requests[i]['requestBody']).text.encode('utf-8')
             i+=2    # 2 because we want to skip the element that contains the recorded headers
 
@@ -49,16 +48,37 @@ class XSS:
             except:
                 return url[0:index]+newValue
 
+    @staticmethod
+    def parseGETVal(url, param):
+        try:
+            val=""
+            index=url.index(param)+len(param)+1
+            while index<(len(url)):
+                if url[index]=='&'
+                    break
+                val+=url[index]
+            return val
+        except:
+            raise ValueError('Param not in URL')
+    def probe(self):
+        s = request.Session()
+        i=0
+        while i<len(self.requests):
+            if request['method']=='GET':
+                response=s.get(request['url']).text.encode('utf-8')
+                for param in parse_qs(urlparse(request['url']).query):
+                    GET_hints[request['requestId']]=parseXSS(response,parseGETVal(request['url'],param))
+            i+=2    #skip headers
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
         i=0
         #print "len: "+str(len(self.requests))
-        while int(self.requests[i]['requestId'])<self.reached_id:
-            if self.requests[i]['method']=='GET':
-                response= s.get(self.requests[i]['url']).text.encode('utf-8')
+        while int(request['requestId'])<self.reached_id:
+            if request['method']=='GET':
+                response= s.get(request['url']).text.encode('utf-8')
                 XSS.verify(response)
-            elif self.requests[i]['method']=='POST':
-                response= s.post(self.requests[i]['url'],params=self.requests[i]['requestBody']).text.encode('utf-8')
+            elif request['method']=='POST':
+                response= s.post(request['url'],params=request['requestBody']).text.encode('utf-8')
                 XSS.verify(response)
             i+=2
             #print i
@@ -70,12 +90,13 @@ class XSS:
             return True
         return False
 
-    def test(self, method, url, param,postData=None):
+    def test(self, method, url, requestId, param,postData=None):
         s = requests.Session()
         if method=='GET':
             #res=s.get(url)
             #text=res.text.encode('utf-8')
-            newUrl = XSS.substParam(url,param,XSS.inj1)
+            if GET_hints[requestId]==Hints.NONE:
+                newUrl = XSS.substParam(url,param,XSS.inj1)
             self.catchUp(s)
             response = s.get(newUrl,verify=False).text.encode('utf-8')
             if XSS.verify(response):
