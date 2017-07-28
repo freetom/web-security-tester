@@ -12,5 +12,5 @@ with open(sys.argv[1]) as data_file:
 
 #pprint(data)
 
-xss=Fuzz(data)
-xss.fuzz()
+fuzz=Fuzz(data)
+fuzz.fuzz()

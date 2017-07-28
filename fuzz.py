@@ -13,6 +13,8 @@ class Fuzz:
     reached_id=0
     s=None
     inj1='<js>'
+    craftUrl='http://www.ciao.com'
+
     def __init__(self,reqs):
         self.requests= copy.deepcopy(reqs)
         for request in self.requests:
@@ -31,7 +33,7 @@ class Fuzz:
 
             for hint in self.GET_hints[request['requestId']]:
                 if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
-                    total+=1
+                    total+=counter if counter>0 else 1
             counter+=1
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
@@ -39,13 +41,13 @@ class Fuzz:
     def fuzz(self):
         self.probe()    #probe normally to get hints on possible injections
         self.estimate_effort()
-        return
+
         for request in self.requests:
             self.reached_id=int(request['requestId'])
             print request['url']+' '+request['method']
             if request['method']=='GET':
                 for param in self.GET_params[request['requestId']]:
-                    self.test('GET',request['url'],param,request['requestId'])
+                    self.test('GET',request['url'],request['requestId'],param)
                 #print s.get(requests[i]['url']).text.encode('utf-8')
             elif request['method']=='POST':
                 if 'formData' in request['requestBody']:
@@ -85,27 +87,40 @@ class Fuzz:
         s = requests.Session()
         for request in self.requests:
             self.GET_hints[request['requestId']]={}
+        for request in self.requests:
             if request['method']=='GET':
-                response=s.get(request['url']).text.encode('utf-8')
+                response=s.get(request['url'],verify=False).text.encode('utf-8')
                 for param in self.GET_params[request['requestId']]:
                     self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
-        for hint in self.GET_hints[request['requestId']]:
-            if hint[param]!=1:
-                print 'got hint'
+            for hint in self.GET_hints[request['requestId']]:
+                if hint!=1:
+                    print 'got hint '+hint
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
         i=0
         #print "len: "+str(len(self.requests))
-        while int(request['requestId'])<self.reached_id:
-            if request['method']=='GET':
-                response= s.get(request['url']).text.encode('utf-8')
+        for request in self.requests:
+            while int(request['requestId'])<self.reached_id:
+                if request['method']=='GET':
+                    response= s.get(request['url'],verify=False).text.encode('utf-8')
+                    Fuzz.verify(response)
+                elif request['method']=='POST':
+                    response= s.post(request['url'],params=request['requestBody']).text.encode('utf-8')
+                    Fuzz.verify(response)
+                i+=1
+
+    def tillTheEnd(self):
+        i=0
+        while int(self.requests[i]['requestId'])<=self.reached_id:
+            i+=1
+        while i<len(requests):
+            if requests[i]['method']=='GET':
+                response= s.get(requests[i]['url'],verify=False).text.encode('utf-8')
                 Fuzz.verify(response)
-            elif request['method']=='POST':
+            elif requests[i]['method']=='POST':
                 response= s.post(request['url'],params=request['requestBody']).text.encode('utf-8')
                 Fuzz.verify(response)
-            i+=1
-            #print i
 
     @staticmethod
     def verify(response):
@@ -114,11 +129,28 @@ class Fuzz:
             return True
         return False
 
+    @staticmethod
+    def verifyRedirect(response):
+        if len(response.history)>0:
+            if Fuzz.craftUrl in response.url:
+                print "FOUND OPEN REDIRECT"
+                exit()
+
+    def testOpenRedirect(self, url, param):
+        #test for Open-redirect
+        s=requests.Session()
+        self.catchUp(s)
+        newUrl = Fuzz.substParam(url,param,Fuzz.craftUrl)
+        response = s.get(newUrl, verify=False)
+        Fuzz.verifyRedirect(response)
+        self.tillTheEnd(s) #follow the remaining requests to check for the redirect
+
     def test(self, method, url, requestId, param,postData=None):
         s = requests.Session()
         if method=='GET':
             # if the param result in the text unescaped try to inject
-            hint = GET_hints[requestId][param]
+            #print param
+            hint = self.GET_hints[requestId][param]
             if hint==Hints.NOT_FOUND:
                 return
             elif hint!=Hints.FOUND_ESCAPED:
@@ -127,14 +159,7 @@ class Fuzz:
                     exit()
                 if hint==Hints.URL:
                     print "FOUND URL"
-                    #test for Open-redirect
-                    craftUrl='http://www.ciao.com'
-                    newUrl = Fuzz.substParam(url,param,craftUrl)
-                    response = s.get(newUrl)
-                    if len(response.history>0):
-                        if craftUrl in response.url:
-                            print "FOUND OPEN REDIRECT"
-                            exit()
+                    self.testOpenRedirect(url, param)
                 else:
                     newUrl = Fuzz.substParam(url,param,Fuzz.inj1)
             else:
