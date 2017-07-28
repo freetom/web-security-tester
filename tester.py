@@ -1,7 +1,7 @@
 import json
 import sys
 
-from xss import XSS
+from fuzz import Fuzz
 
 # should test for XSS,SQLI,open-redirect
 if len(sys.argv) < 2:

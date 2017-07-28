@@ -5,7 +5,7 @@ from xss_hints import *
 
 import re
 
-class XSS:
+class Fuzz:
     requests=[]
     GET_params={}
     GET_hints={}
@@ -24,17 +24,20 @@ class XSS:
         total=0
         counter=1
         for request in self.requests:
-            params=len(self.GET_params[request['requestId']])
+            #params=len(self.GET_params[request['requestId']])
             if request['method']=="POST":
-                params+=len(self.POST_params[request['requestId']])
-            total+=(params*counter)
+                #params+=len(self.POST_params[request['requestId']])
+            #total+=(params*counter)
+            for hint in self.GET_hints[request['requestId']]:
+                if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
+                total+=1
             counter+=1
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
 
     def fuzz(self):
-        self.estimate_effort()
         self.probe()    #probe normally to get hints on possible injections
+        self.estimate_effort()
         return
         for request in self.requests:
             self.reached_id=int(request['requestId'])
@@ -82,8 +85,8 @@ class XSS:
         for request in self.requests:
             if request['method']=='GET':
                 response=s.get(request['url']).text.encode('utf-8')
-                for param in parse_qs(urlparse(request['url']).query):
-                    self.GET_hints[request['requestId']]=parseXSS(response,XSS.parseGETVal(request['url'],param))
+                for param in self.GET_params[request['requestId']]:
+                    self.GET_hints[request['requestId']]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
         for hint in self.GET_hints:
             if self.GET_hints[hint]!=1:
                 print 'got hint'
@@ -95,30 +98,49 @@ class XSS:
         while int(request['requestId'])<self.reached_id:
             if request['method']=='GET':
                 response= s.get(request['url']).text.encode('utf-8')
-                XSS.verify(response)
+                Fuzz.verify(response)
             elif request['method']=='POST':
                 response= s.post(request['url'],params=request['requestBody']).text.encode('utf-8')
-                XSS.verify(response)
+                Fuzz.verify(response)
             i+=1
             #print i
 
     @staticmethod
     def verify(response):
-        if XSS.inj1 in response:
-            print "XSS found !!"
+        if Fuzz.inj1 in response:
+            print "Fuzz found !!"
             return True
         return False
 
     def test(self, method, url, requestId, param,postData=None):
         s = requests.Session()
         if method=='GET':
-            #res=s.get(url)
-            #text=res.text.encode('utf-8')
-            if GET_hints[requestId]==Hints.NONE:
-                newUrl = XSS.substParam(url,param,XSS.inj1)
+            # if the param result in the text unescaped try to inject
+            hint = GET_hints[requestId][param]
+            if hint==Hints.NOT_FOUND:
+                return
+            elif hint!=Hints.FOUND_ESCAPED:
+                if hint==Hints.JS:
+                    print "JS  found "+param+" "+url
+                    exit()
+                if hint==Hints.URL:
+                    print "FOUND URL"
+                    #test for Open-redirect
+                    craftUrl='http://www.ciao.com'
+                    newUrl = Fuzz.substParam(url,param,craftUrl)
+                    response = s.get(newUrl)
+                    if len(response.history>0):
+                        if craftUrl in response.url:
+                            print "FOUND OPEN REDIRECT"
+                            exit()
+                else
+                    newUrl = Fuzz.substParam(url,param,Fuzz.inj1)
+            else:
+                return
+
             self.catchUp(s)
             response = s.get(newUrl,verify=False).text.encode('utf-8')
-            if XSS.verify(response):
+            if Fuzz.verify(response):
                 print "PARAM: "+param
 
             """print "##################"
@@ -127,10 +149,10 @@ class XSS:
             print param"""
         elif method=='POST':
             newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=XSS.inj1
+            newPost['formData'][param]=Fuzz.inj1
             self.catchUp(s)
             response = s.post(url,params=newPost).text.encode('utf-8')
-            XSS.verify(response)
+            Fuzz.verify(response)
             print "##################"
             print newPost
             print "##################"
