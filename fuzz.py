@@ -1,7 +1,7 @@
 import requests
 import copy
 from urlparse import *
-from xss_hints import *
+from hints import *
 
 import re
 
@@ -25,12 +25,13 @@ class Fuzz:
         counter=1
         for request in self.requests:
             #params=len(self.GET_params[request['requestId']])
-            if request['method']=="POST":
+            #if request['method']=="POST":
                 #params+=len(self.POST_params[request['requestId']])
             #total+=(params*counter)
+
             for hint in self.GET_hints[request['requestId']]:
                 if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
-                total+=1
+                    total+=1
             counter+=1
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
@@ -83,12 +84,13 @@ class Fuzz:
         print "probing.."
         s = requests.Session()
         for request in self.requests:
+            self.GET_hints[request['requestId']]={}
             if request['method']=='GET':
                 response=s.get(request['url']).text.encode('utf-8')
                 for param in self.GET_params[request['requestId']]:
-                    self.GET_hints[request['requestId']]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
-        for hint in self.GET_hints:
-            if self.GET_hints[hint]!=1:
+                    self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
+        for hint in self.GET_hints[request['requestId']]:
+            if hint[param]!=1:
                 print 'got hint'
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
@@ -133,7 +135,7 @@ class Fuzz:
                         if craftUrl in response.url:
                             print "FOUND OPEN REDIRECT"
                             exit()
-                else
+                else:
                     newUrl = Fuzz.substParam(url,param,Fuzz.inj1)
             else:
                 return

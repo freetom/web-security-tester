@@ -12,23 +12,12 @@ class Hints():
   URL=6
   FILE=7
 
-function escapeHtml(text) {
-  var map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-
-  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-}
 # is the param in the page  ? if yes, where ?
-def parseXSS(httpResponse, paramValue):
+def parseFuzz(httpResponse, paramValue):
     if paramValue=='':
         return Hints.NOT_FOUND
-    if url.parse(paramValue).netloc!='':
-        return URL
+    if urlparse(paramValue).netloc!='':
+        return Hints.URL
     try:
         originalIndex=httpResponse.index(paramValue)
         #check if it's into a script
