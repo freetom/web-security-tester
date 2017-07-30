@@ -23,7 +23,7 @@ class Fuzz:
         #print self.headers[requestId]
 
     def send_req(self, requestId, s, url, method, post=None):
-        sleep(Fuzz.reqInterval)
+        sleep(Fuzz.requestWaitTime)
         self.put_headers(s,requestId)
         if method=='GET':
             return s.get(url,verify=False)
@@ -51,7 +51,6 @@ class Fuzz:
 
     def estimate_effort(self):
         total=0
-        counter=1
         for request in self.requests:
             #params=len(self.GET_params[request['requestId']])
             #if request['method']=="POST":
@@ -60,8 +59,9 @@ class Fuzz:
 
             for hint in self.GET_hints[request['requestId']]:
                 if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
-                    total+=counter if counter>0 else 1
-            counter+=1
+                    if hint==Hints.URL:
+                        total+=len(self.requests) #count open redirect
+                    total+=len(self.requests)
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
 
