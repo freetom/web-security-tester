@@ -2,10 +2,13 @@ import requests
 import copy
 from urlparse import *
 from hints import *
-
+from time import sleep
 import re
 
 class Fuzz:
+    requestWaitTime=0.1 # seconds   -   used to prevent overloading of servers
+    keepHeaders={'Upgrade-Insecure-Requests', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language'}
+    headers={}
     requests=[]
     GET_params={}
     GET_hints={}
@@ -15,12 +18,36 @@ class Fuzz:
     inj1='<js>'
     craftUrl='http://www.ciao.com'
 
-    def __init__(self,reqs):
+    def put_headers(self, s, requestId):
+        s.headers.update(self.headers[requestId])
+        #print self.headers[requestId]
+
+    def send_req(self, requestId, s, url, method, post=None):
+        sleep(Fuzz.reqInterval)
+        self.put_headers(s,requestId)
+        if method=='GET':
+            return s.get(url,verify=False)
+        elif method=='POST':
+            return s.post(url, params=request['requestBody'], verify=False)
+        return None
+
+    def __init__(self, reqs, headers):
         self.requests= copy.deepcopy(reqs)
+
+        # get params
         for request in self.requests:
             self.GET_params[request['requestId']]=parse_qs(urlparse(request['url']).query)
             if request['method']=='POST':
                 self.POST_params[request['requestId']]=request['requestBody']
+
+        # filter headers
+        self.headers={}
+        for header in headers:
+            self.headers[header['requestId']]={}
+            for requestHeaders in header['requestHeaders']:
+                if requestHeaders['name'] in Fuzz.keepHeaders:
+                    self.headers[header['requestId']][requestHeaders['name']]=requestHeaders['value']
+
 
     def estimate_effort(self):
         total=0
@@ -48,13 +75,13 @@ class Fuzz:
             if request['method']=='GET':
                 for param in self.GET_params[request['requestId']]:
                     self.test('GET',request['url'],request['requestId'],param)
-                #print s.get(requests[i]['url']).text.encode('utf-8')
+                #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'GET').text.encode('utf-8')
             elif request['method']=='POST':
                 if 'formData' in request['requestBody']:
                     for param in request['requestBody']['formData']:
                         #print param
                         self.test('POST',request['url'],param,request['requestId'],request['requestBody'])
-                        #print s.post(requests[i]['url'],requests=requests[i]['requestBody']).text.encode('utf-8')
+                        #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'POST' , post=requests[i]['requestBody']).text.encode('utf-8')
 
     @staticmethod
     def substParam(url,name,newValue):
@@ -89,7 +116,7 @@ class Fuzz:
             self.GET_hints[request['requestId']]={}
         for request in self.requests:
             if request['method']=='GET':
-                response=s.get(request['url'],verify=False).text.encode('utf-8')
+                response=self.send_req(request['requestId'], s, request['url'], 'GET').text.encode('utf-8')
                 for param in self.GET_params[request['requestId']]:
                     self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
             for hint in self.GET_hints[request['requestId']]:
@@ -103,11 +130,10 @@ class Fuzz:
         for request in self.requests:
             while int(request['requestId'])<self.reached_id:
                 if request['method']=='GET':
-                    response= s.get(request['url'],verify=False).text.encode('utf-8')
-                    Fuzz.verify(response)
+                    response = self.send_req(request['requestId'], s,request['url'], 'GET').text.encode('utf-8')
                 elif request['method']=='POST':
-                    response= s.post(request['url'],params=request['requestBody']).text.encode('utf-8')
-                    Fuzz.verify(response)
+                    response = self.send_req(request['requestId'], s,request['url'], 'POST', post=request['requestBody']).text.encode('utf-8')
+                Fuzz.verify(response)
                 i+=1
 
     def tillTheEnd(self):
@@ -116,11 +142,10 @@ class Fuzz:
             i+=1
         while i<len(requests):
             if requests[i]['method']=='GET':
-                response= s.get(requests[i]['url'],verify=False).text.encode('utf-8')
-                Fuzz.verify(response)
+                response= self.send_req(requests[i]['requestId'], s, requests[i]['url'],'GET').text.encode('utf-8')
             elif requests[i]['method']=='POST':
-                response= s.post(request['url'],params=request['requestBody']).text.encode('utf-8')
-                Fuzz.verify(response)
+                response= self.send_req(requests[i]['requestId'], s, request['url'], 'POST', post=request['requestBody']).text.encode('utf-8')
+            Fuzz.verify(response)
 
     @staticmethod
     def verify(response):
@@ -136,12 +161,12 @@ class Fuzz:
                 print "FOUND OPEN REDIRECT"
                 exit()
 
-    def testOpenRedirect(self, url, param):
+    def testOpenRedirect(self, url, param, method, requestId, post_=None):
         #test for Open-redirect
         s=requests.Session()
         self.catchUp(s)
         newUrl = Fuzz.substParam(url,param,Fuzz.craftUrl)
-        response = s.get(newUrl, verify=False)
+        response = self.send_req(requestId, s, newUrl, method)
         Fuzz.verifyRedirect(response)
         self.tillTheEnd(s) #follow the remaining requests to check for the redirect
 
@@ -159,14 +184,14 @@ class Fuzz:
                     exit()
                 if hint==Hints.URL:
                     print "FOUND URL"
-                    self.testOpenRedirect(url, param)
+                    self.testOpenRedirect(url, param, 'GET', requestId)
                 else:
                     newUrl = Fuzz.substParam(url,param,Fuzz.inj1)
             else:
                 return
 
             self.catchUp(s)
-            response = s.get(newUrl,verify=False).text.encode('utf-8')
+            response = self.send_req(requestId, s, newUrl, 'GET').text.encode('utf-8')
             if Fuzz.verify(response):
                 print "PARAM: "+param
 
@@ -178,7 +203,7 @@ class Fuzz:
             newPost=copy.deepcopy(postData)
             newPost['formData'][param]=Fuzz.inj1
             self.catchUp(s)
-            response = s.post(url,params=newPost).text.encode('utf-8')
+            response = self.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
             Fuzz.verify(response)
             print "##################"
             print newPost
