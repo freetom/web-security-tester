@@ -28,7 +28,7 @@ class Fuzz:
         if method=='GET':
             return s.get(url,verify=False)
         elif method=='POST':
-            return s.post(url, params=request['requestBody'], verify=False)
+            return s.post(url, params=post, verify=False)
         return None
 
     def __init__(self, reqs, headers):
@@ -80,7 +80,7 @@ class Fuzz:
                 if 'formData' in request['requestBody']:
                     for param in request['requestBody']['formData']:
                         #print param
-                        self.test('POST',request['url'],param,request['requestId'],request['requestBody'])
+                        self.test('POST',request['url'],request['requestId'],param,request['requestBody'])
                         #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'POST' , post=requests[i]['requestBody']).text.encode('utf-8')
 
     @staticmethod
@@ -125,26 +125,28 @@ class Fuzz:
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
-        i=0
+
         #print "len: "+str(len(self.requests))
         for request in self.requests:
-            while int(request['requestId'])<self.reached_id:
+            if int(request['requestId'])<self.reached_id:
                 if request['method']=='GET':
                     response = self.send_req(request['requestId'], s,request['url'], 'GET').text.encode('utf-8')
                 elif request['method']=='POST':
                     response = self.send_req(request['requestId'], s,request['url'], 'POST', post=request['requestBody']).text.encode('utf-8')
                 Fuzz.verify(response)
-                i+=1
+            else:
+                break
 
     def tillTheEnd(self):
         i=0
         while int(self.requests[i]['requestId'])<=self.reached_id:
             i+=1
         while i<len(requests):
-            if requests[i]['method']=='GET':
-                response= self.send_req(requests[i]['requestId'], s, requests[i]['url'],'GET').text.encode('utf-8')
+            request=self.requests[i]
+            if request['method']=='GET':
+                response= self.send_req(request['requestId'], s, request['url'],'GET').text.encode('utf-8')
             elif requests[i]['method']=='POST':
-                response= self.send_req(requests[i]['requestId'], s, request['url'], 'POST', post=request['requestBody']).text.encode('utf-8')
+                response= self.send_req(request['requestId'], s, request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
             Fuzz.verify(response)
 
     @staticmethod
@@ -170,7 +172,7 @@ class Fuzz:
         Fuzz.verifyRedirect(response)
         self.tillTheEnd(s) #follow the remaining requests to check for the redirect
 
-    def test(self, method, url, requestId, param,postData=None):
+    def test(self, method, url, requestId, param, postData=None):
         s = requests.Session()
         if method=='GET':
             # if the param result in the text unescaped try to inject
@@ -195,10 +197,10 @@ class Fuzz:
             if Fuzz.verify(response):
                 print "PARAM: "+param
 
-            """print "##################"
+            print "##################"
             print newUrl
             print "##################"
-            print param"""
+            print param
         elif method=='POST':
             newPost=copy.deepcopy(postData)
             newPost['formData'][param]=Fuzz.inj1
