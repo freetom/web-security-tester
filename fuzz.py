@@ -15,8 +15,11 @@ class Fuzz:
     POST_params={}
     reached_id=0
     s=None
-    inj1='<js>'
+    XSS_inj='<js>'
     craftUrl='http://www.ciao.com'
+
+    def get_XSS_payload(self, paramName):
+        return Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
 
     def put_headers(self, s, requestId):
         s.headers.update(self.headers[requestId])
@@ -125,14 +128,13 @@ class Fuzz:
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
-
         #print "len: "+str(len(self.requests))
         for request in self.requests:
             if int(request['requestId'])<self.reached_id:
                 if request['method']=='GET':
                     response = self.send_req(request['requestId'], s,request['url'], 'GET').text.encode('utf-8')
                 elif request['method']=='POST':
-                    response = self.send_req(request['requestId'], s,request['url'], 'POST', post=request['requestBody']).text.encode('utf-8')
+                    response = self.send_req(request['requestId'], s,request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
                 Fuzz.verify(response)
             else:
                 break
@@ -151,8 +153,10 @@ class Fuzz:
 
     @staticmethod
     def verify(response):
-        if Fuzz.inj1 in response:
+        if Fuzz.XSS_inj in response:
             print "Fuzz found !!"
+            index=response.index(Fuzz.XSS_inj)+len(Fuzz.XSS_inj)
+            print response[index:index+response[index:].index(Fuzz.XSS_inj)] #print the payload info of the XSS
             return True
         return False
 
@@ -188,7 +192,7 @@ class Fuzz:
                     print "FOUND URL"
                     self.testOpenRedirect(url, param, 'GET', requestId)
                 else:
-                    newUrl = Fuzz.substParam(url,param,Fuzz.inj1)
+                    newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param))
             else:
                 return
 
@@ -203,7 +207,7 @@ class Fuzz:
             print param
         elif method=='POST':
             newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=Fuzz.inj1
+            newPost['formData'][param]=self.get_XSS_payload(param)
             self.catchUp(s)
             response = self.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
             Fuzz.verify(response)
