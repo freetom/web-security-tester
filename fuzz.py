@@ -21,6 +21,9 @@ class Fuzz:
     def get_XSS_payload(self, paramName):
         return Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
 
+    def get_SQL_payload(self):
+        return '1\'; sleep(3)'
+
     def put_headers(self, s, requestId):
         s.headers.update(self.headers[requestId])
         #print self.headers[requestId]
@@ -34,7 +37,7 @@ class Fuzz:
             return s.post(url, params=post, verify=False)
         return None
 
-    def __init__(self, reqs, headers):
+    def __init__(self, reqs, headers, xss, sqli):
         self.requests= copy.deepcopy(reqs)
 
         # get params
@@ -50,7 +53,9 @@ class Fuzz:
             for requestHeaders in header['requestHeaders']:
                 if requestHeaders['name'] in Fuzz.keepHeaders:
                     self.headers[header['requestId']][requestHeaders['name']]=requestHeaders['value']
-
+        # copy testing flags
+        self.xss=xss
+        self.sqli=sqli
 
     def estimate_effort(self):
         total=0
@@ -77,13 +82,19 @@ class Fuzz:
             print request['url']+' '+request['method']
             if request['method']=='GET':
                 for param in self.GET_params[request['requestId']]:
-                    self.test('GET',request['url'],request['requestId'],param)
+                    if self.xss:
+                        self.testXSS('GET',request['url'],request['requestId'],param)
+                    if self.sqli:
+                        self.testSQL('GET',request['url'],request['requestId'],param)
                 #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'GET').text.encode('utf-8')
             elif request['method']=='POST':
                 if 'formData' in request['requestBody']:
                     for param in request['requestBody']['formData']:
-                        #print param
-                        self.test('POST',request['url'],request['requestId'],param,request['requestBody'])
+                        if self.xss:
+                            self.testXSS('POST',request['url'],request['requestId'],param,request['requestBody'])
+                        if self.sqli:
+                            self.testSQL('POST',request['url'],request['requestId'],param,request['requestBody'])
+
                         #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'POST' , post=requests[i]['requestBody']).text.encode('utf-8')
 
     @staticmethod
@@ -135,7 +146,7 @@ class Fuzz:
                     response = self.send_req(request['requestId'], s,request['url'], 'GET').text.encode('utf-8')
                 elif request['method']=='POST':
                     response = self.send_req(request['requestId'], s,request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
-                Fuzz.verify(response)
+                Fuzz.verifyXSS(response)
             else:
                 break
 
@@ -149,14 +160,14 @@ class Fuzz:
                 response= self.send_req(request['requestId'], s, request['url'],'GET').text.encode('utf-8')
             elif requests[i]['method']=='POST':
                 response= self.send_req(request['requestId'], s, request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
-            Fuzz.verify(response)
+            Fuzz.verifyXSS(response)
 
     @staticmethod
-    def verify(response):
-        if Fuzz.XSS_inj in response:
+    def verifyXSS(response_text):
+        if Fuzz.XSS_inj in response_text:
             print "Fuzz found !!"
-            index=response.index(Fuzz.XSS_inj)+len(Fuzz.XSS_inj)
-            print response[index:index+response[index:].index(Fuzz.XSS_inj)] #print the payload info of the XSS
+            index=response_text.index(Fuzz.XSS_inj)+len(Fuzz.XSS_inj)
+            print response_text[index:index+response_text[index:].index(Fuzz.XSS_inj)] #print the payload info of the XSS
             return True
         return False
 
@@ -176,12 +187,12 @@ class Fuzz:
         Fuzz.verifyRedirect(response)
         self.tillTheEnd(s) #follow the remaining requests to check for the redirect
 
-    def test(self, method, url, requestId, param, postData=None):
+    def testXSS(self, method, url, requestId, param, postData=None):
         s = requests.Session()
         if method=='GET':
             # if the param result in the text unescaped try to inject
-            #print param
             hint = self.GET_hints[requestId][param]
+            #print param+" "+str(hint)
             if hint==Hints.NOT_FOUND:
                 return
             elif hint!=Hints.FOUND_ESCAPED:
@@ -198,8 +209,7 @@ class Fuzz:
 
             self.catchUp(s)
             response = self.send_req(requestId, s, newUrl, 'GET').text.encode('utf-8')
-            if Fuzz.verify(response):
-                print "PARAM: "+param
+            Fuzz.verifyXSS(response)
 
             print "##################"
             print newUrl
@@ -210,7 +220,40 @@ class Fuzz:
             newPost['formData'][param]=self.get_XSS_payload(param)
             self.catchUp(s)
             response = self.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
-            Fuzz.verify(response)
+            Fuzz.verifyXSS(response)
             print "##################"
             print newPost
             print "##################"
+
+    def verifySQL(self, response, param, requestId):
+        if response.status_code>=500:
+            print "Potential SQLI in "+param+" id:"+requestId
+            return True
+        elif response.elapsed.total_seconds()>=3:
+            print "Successful SQLI in "+param+" id:"+requestId
+            return True
+        else:
+            try:
+                pass
+                #should test for SQL error messages in response
+                #if re.search('SQL|error', response.text)!=None:
+                #    print "SQL error shown in page"
+            except:
+                pass
+            return False
+
+    def testSQL(self, method, url, requestId, param, postData=None):
+        s=requests.Session()
+        if method=='GET':
+            newUrl = Fuzz.substParam(url,param,self.get_SQL_payload())
+            self.catchUp(s)
+            response = self.send_req(requestId, s, newUrl, 'GET')
+            print "Attempting GET SQLI on "+param
+            self.verifySQL(response, param, requestId)
+        elif method=='POST':
+            newPost=copy.deepcopy(postData)
+            newPost['formData'][param]=self.get_SQL_payload()
+            self.catchUp(s)
+            response = self.send_req(requestId, s, url, 'POST', post=newPost)
+            print "Attempting GET SQLI on "+param
+            self.verifySQL(response, param, requestId)
