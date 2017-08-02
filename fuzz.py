@@ -17,6 +17,7 @@ class Fuzz:
     reached_id=0
     s=None
     XSS_inj='<js>'
+    SQL_inj={'1\'; sleep(3)--', '1; sleep(3)--', '1\'); sleep(3)--', '1); sleep(3)--'}
     craftUrl='http://www.ciao.com'
 
     ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg'}
@@ -24,8 +25,10 @@ class Fuzz:
     def get_XSS_payload(self, paramName):
         return Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
 
-    def get_SQL_payload(self):
-        return '1\'; sleep(3)'
+    def get_SQL_payload(self, index):
+        if index<0 or index>=len(Fuzz.SQL_inj):
+            raise ValueError('index not in range of SQL_inj')
+        return SQL_inj[index]
 
     #return whether an url of a request is required to be tested for injections
     @staticmethod
@@ -66,7 +69,7 @@ class Fuzz:
         for request in self.requests:
             # test from url if the request is a necessary one (e.g. not static content with no or trivial backend interaction)
             self.necessaryRequests[request['requestId']]=Fuzz.to_test(request['url'])
-            print request['url']+" "+str(self.necessaryRequests[request['requestId']])
+            #print request['url']+" "+str(self.necessaryRequests[request['requestId']])
             self.GET_params[request['requestId']]=parse_qs(urlparse(request['url']).query)
             if request['method']=='POST':
                 self.POST_params[request['requestId']]=request['requestBody']
@@ -273,21 +276,26 @@ class Fuzz:
                 pass
             return False
 
+    # for each test, try each injection string and verify
     def testSQL(self, method, url, requestId, param, postData=None):
         s=requests.Session()
         if method=='GET':
-            newUrl = Fuzz.substParam(url,param,self.get_SQL_payload())
-            self.catchUp(s)
-            response = self.send_req(requestId, s, newUrl, 'GET')
-            print "Attempting GET SQLI on "+param
-            self.verifySQL(response, param, requestId)
+            for i in range(len(Fuzz.SQL_inj)):
+                newUrl = Fuzz.substParam(url,param,self.get_SQL_payload(i))
+                self.catchUp(s)
+                print "Attempting GET SQLI on "+param
+                response = self.send_req(requestId, s, newUrl, 'GET')
+                if self.verifySQL(response, param, requestId):
+                    break
         elif method=='POST':
-            newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=self.get_SQL_payload()
-            self.catchUp(s)
-            response = self.send_req(requestId, s, url, 'POST', post=newPost)
-            print "Attempting GET SQLI on "+param
-            self.verifySQL(response, param, requestId)
+            for i in range(len(Fuzz.SQL_inj)):
+                newPost=copy.deepcopy(postData)
+                newPost['formData'][param]=self.get_SQL_payload(i)
+                self.catchUp(s)
+                print "Attempting GET SQLI on "+param
+                response = self.send_req(requestId, s, url, 'POST', post=newPost)
+                if self.verifySQL(response, param, requestId):
+                    break
 
     def verifyXEE(self, response, param, requestId):
         try:
