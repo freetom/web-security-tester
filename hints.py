@@ -1,6 +1,7 @@
 from enum import Enum
 import html
 from urlparse import urlparse
+import re
 
 # XSS hints for the injection of a parameter
 class Hints():
@@ -11,6 +12,7 @@ class Hints():
   TAG = 5
   URL=6
   FILE=7
+  XML=8
 
 # is the param in the page  ? if yes, where ?
 def parseFuzz(httpResponse, paramValue):
@@ -18,6 +20,8 @@ def parseFuzz(httpResponse, paramValue):
         return Hints.NOT_FOUND
     if urlparse(paramValue).netloc!='':
         return Hints.URL
+    if attr = re.search('<.*>', paramValue)
+        return Hints.XML
     try:
         originalIndex=httpResponse.index(paramValue)
         #check if it's into a script
