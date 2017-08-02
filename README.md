@@ -17,7 +17,7 @@ By default the tester inject simple and not harmful payloads to just test if it 
 
 ## TODO
 
-The tester at the moment supports XSS, open redirects, SQLI, XEE. However, more cases has to be tested, especially for SQLI and better interpretation of the server response. XSS atm doesn't support injections in cookies or headers. Furthermore, other classes of vulnerabilities should become supported as well (regarding files and cmd injections).
+The tester at the moment supports XSS, open redirects, SQLI, XXE. However, more cases has to be tested, especially for SQLI and better interpretation of the server response. XSS atm doesn't support injections in cookies or headers. Furthermore, other classes of vulnerabilities should become supported as well (regarding files and cmd injections).
 
 ## Contributing
 

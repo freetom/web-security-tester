@@ -5,21 +5,28 @@ from hints import *
 from time import sleep
 import re
 
+# This class fuzzes web applications by mutating parameters of genuine requests
+# The goal is to have an extensive mechanism to thoroughly test for standard vulnerabilities
+#
 class Fuzz:
     requestWaitTime=0.1 # seconds   -   used to prevent overloading of servers
     keepHeaders={'Upgrade-Insecure-Requests', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language'}
-    headers={}
-    requests=[]
+    headers={}  # all the resulting filtered headers per each request
+    requests=[] # all the requests
     necessaryRequests={} # map requestId -> boolean to memorize if it's a required requets
+    lenNecessaryRequests=None
     GET_params={}
-    GET_hints={}
+    GET_hints={}    # contains the hints that the fuzzer got to test attacks on specific GET_params
     POST_params={}
-    reached_id=0
-    s=None
+    reached_id=0    # the fuzzer passes through all the requests and keep the reached_id as reference
+
     XSS_inj='<js>'
     SQL_inj={'1\'; sleep(3)--', '1; sleep(3)--', '1\'); sleep(3)--', '1); sleep(3)--'}
     craftUrl='http://www.ciao.com'
 
+    # if a url points to a path in which the file has one of these extensions, then the request will be ignored
+    # probably this mechanism is not good enough, especially if the backend has custom configuration
+    # but still it should be useful to skip unnecessary requests
     ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg'}
 
     def get_XSS_payload(self, paramName):
@@ -44,7 +51,7 @@ class Fuzz:
         return True
 
     # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
-    def get_XEE_payload(self):
+    def get_XXE_payload(self):
         return '<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE foo [ <!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>'
 
     def put_headers(self, s, requestId):
@@ -74,6 +81,9 @@ class Fuzz:
             if request['method']=='POST':
                 self.POST_params[request['requestId']]=request['requestBody']
 
+        # update how many requests are necessary to be sent in a whole trace
+        lenNecessaryRequests=sum(necessaryRequests.values())
+
         # filter headers
         self.headers={}
         for header in headers:
@@ -94,11 +104,23 @@ class Fuzz:
                 #params+=len(self.POST_params[request['requestId']])
             #total+=(params*counter)
 
-            for hint in self.GET_hints[request['requestId']]:
-                if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
-                    if hint==Hints.URL:
-                        total+=len(self.requests) #count open redirect
-                    total+=len(self.requests)
+            if self.xss:
+                for hint in self.GET_hints[request['requestId']]:
+                    if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
+                        if hint==Hints.URL:
+                            total+=len(self.requests) #count open redirect
+                        total+=len(self.requests)
+            if self.sql:    # each XEE test take as many requests as the trace multiplied by the SQL payloads
+                for param in self.GET_params:
+                    total+=len(Fuzz.SQL_inj)*lenNecessaryRequests
+                for param in self.POST_params:
+                    total+=len(Fuzz.SQL_inj)*lenNecessaryRequests
+            if self.xee:    # each XEE test take as many requests as the trace
+                for param in self.GET_params:
+                    if hint!=Hints.XML:
+                        total+=lenNecessaryRequests
+                for param in self.POST_params:
+                    total+=lenNecessaryRequests
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
 
@@ -244,6 +266,7 @@ class Fuzz:
             self.catchUp(s)
             response = self.send_req(requestId, s, newUrl, 'GET').text.encode('utf-8')
             Fuzz.verifyXSS(response)
+            self.tillTheEnd(s)
 
             print "##################"
             print newUrl
@@ -255,6 +278,8 @@ class Fuzz:
             self.catchUp(s)
             response = self.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
             Fuzz.verifyXSS(response)
+            self.tillTheEnd(s)
+
             print "##################"
             print newPost
             print "##################"
@@ -287,6 +312,7 @@ class Fuzz:
                 response = self.send_req(requestId, s, newUrl, 'GET')
                 if self.verifySQL(response, param, requestId):
                     break
+                self.tillTheEnd(s)
         elif method=='POST':
             for i in range(len(Fuzz.SQL_inj)):
                 newPost=copy.deepcopy(postData)
@@ -296,27 +322,28 @@ class Fuzz:
                 response = self.send_req(requestId, s, url, 'POST', post=newPost)
                 if self.verifySQL(response, param, requestId):
                     break
+                self.tillTheEnd(s)
 
-    def verifyXEE(self, response, param, requestId):
+    def verifyXXE(self, response, param, requestId):
         try:
             response.text.index('root:x:0:0:root')
-            print "XEE found in "+requestId+" "+param
+            print "XXE found in "+requestId+" "+param
             return True
         except:
             return False
 
-    def testXEE(self, method, url, requestId, param, postData=None):
+    def testXXE(self, method, url, requestId, param, postData=None):
         s=requests.Session()
         if method=='GET':
-            newUrl = Fuzz.substParam(url,param,self.get_XEE_payload())
+            newUrl = Fuzz.substParam(url,param,self.get_XXE_payload())
             self.catchUp(s)
             response = self.send_req(requestId, s, newUrl, 'GET')
-            print "Attempting GET XEE on "+param
-            self.verifyXEE(response, param, requestId)
+            print "Attempting GET XXE on "+param
+            self.verifyXXE(response, param, requestId)
         elif method=='POST':
             newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=self.get_XEE_payload()
+            newPost['formData'][param]=self.get_XXE_payload()
             self.catchUp(s)
             response = self.send_req(requestId, s, url, 'POST', post=newPost)
-            print "Attempting GET XEE on "+param
-            self.verifyXEE(response, param, requestId)
+            print "Attempting GET XXE on "+param
+            self.verifyXXE(response, param, requestId)
