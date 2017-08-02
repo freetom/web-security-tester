@@ -124,7 +124,8 @@ class Fuzz:
                     if hint&Hints.XML:
                         total+=lenNecessaryRequests
                 for param in self.POST_params:
-                    total+=lenNecessaryRequests
+                    if hint&Hints.XML:
+                        total+=lenNecessaryRequests
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
 
@@ -353,9 +354,12 @@ class Fuzz:
 
     def verifyXXE(self, response, param, requestId):
         try:
-            response.text.index('root:x:0:0:root')
-            print "XXE found in "+requestId+" "+param
-            return True
+            if response.status_code>=500:
+                print "Potential XXE in "+requestId+" "+param
+            else:
+                response.text.index('root:x:0:0:root')
+                print "XXE found in "+requestId+" "+param
+                return True
         except:
             return False
 
