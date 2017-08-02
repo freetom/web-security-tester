@@ -5,23 +5,24 @@ import re
 
 # XSS hints for the injection of a parameter
 class Hints():
-  NOT_FOUND = 1
-  FOUND_ESCAPED=2
-  FOUND = 3
-  JS = 4
-  TAG = 5
-  URL=6
-  FILE=7
-  XML=8
+  NOT_FOUND =       0x1
+  FOUND_ESCAPED =   0x2
+  FOUND =           0x4
+  JS    =           0x8
+  TAG   =           0x10
+  URL   =           0x20
+  FILE  =           0x40
+  XML   =           0x80
 
 # is the param in the page  ? if yes, where ?
 def parseFuzz(httpResponse, paramValue):
     if paramValue=='':
         return Hints.NOT_FOUND
+    ret = 0x0
     if urlparse(paramValue).netloc!='':
-        return Hints.URL
+        ret |= Hints.URL
     if re.search('<.*>', paramValue):
-        return Hints.XML
+        ret |= Hints.XML
     try:
         originalIndex=httpResponse.index(paramValue)
         #check if it's into a script
@@ -33,7 +34,7 @@ def parseFuzz(httpResponse, paramValue):
                         index1=originalIndex
                         while index1>=0:
                             if httpResponse[index1:index1+len('<script>')]=='<script>':
-                                return JS
+                                ret |= JS
                             index1-=1
                 if index1+len('<script>')<=len(httpResponse) and httpResponse[index1:index1+len('<script>')]=='<script>':
                     break
@@ -43,18 +44,17 @@ def parseFuzz(httpResponse, paramValue):
         while index2<len(httpResponse) and (httpResponse[index2]!='>' or httpResponse[index2]!='<'):
             index2+=1
         if index2<len:
-            if httpResponse[index2]=='<':
-                return Hints.FOUND
-            else:
-                return Hints.TAG
+            if httpResponse[index2]!='<':
+                ret |=  Hints.TAG
 
-        return Hints.FOUND
+        ret |= Hints.FOUND
+        return ret
     except:
         # check if it has been escaped
         paramValue=html.escape(paramValue)
         try:
             httpResponse.index(paramValue)
-            return FOUND_ESCAPED
-
+            ret |= FOUND_ESCAPED
         except:
-            return Hints.NOT_FOUND
+            ret |= Hints.NOT_FOUND
+        return ret

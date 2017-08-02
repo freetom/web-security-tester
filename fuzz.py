@@ -82,7 +82,7 @@ class Fuzz:
                 self.POST_params[request['requestId']]=request['requestBody']
 
         # update how many requests are necessary to be sent in a whole trace
-        lenNecessaryRequests=sum(necessaryRequests.values())
+        lenNecessaryRequests=sum(self.necessaryRequests.values())
 
         # filter headers
         self.headers={}
