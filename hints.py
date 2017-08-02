@@ -20,7 +20,7 @@ def parseFuzz(httpResponse, paramValue):
         return Hints.NOT_FOUND
     if urlparse(paramValue).netloc!='':
         return Hints.URL
-    if attr = re.search('<.*>', paramValue)
+    if re.search('<.*>', paramValue):
         return Hints.XML
     try:
         originalIndex=httpResponse.index(paramValue)

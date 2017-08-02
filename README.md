@@ -15,6 +15,10 @@ Is a mutative based tester that first get hints (by analysing servers' responses
 
 By default the tester inject simple and not harmful payloads to just test if it is possible to exploit such mechanism to violate security but without actually harming users or systems. Therefore, the tester will produce a number of requests based on the test cases it decides to run. The number of requests might be huge and the server might suffer the traffic depending on its performances. Such scenarios should be prevented by aborting tests with too many requests and/or increasing the `requestWaitTime` in [fuzz.py](https://github.com/freetom/web-tester/blob/master/fuzz.py)
 
+## TODO
+
+The tester at the moment supports XSS, open redirects, SQLI, XEE. However, more cases has to be tested, especially for SQLI and better interpretation of the server response. XSS atm doesn't support injections in cookies or headers. Furthermore, other classes of vulnerabilities should become supported as well (regarding files and cmd injections).
+
 ## Contributing
 
 Feel free to contribute. Needs for testing, ideas, developing

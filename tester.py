@@ -30,5 +30,5 @@ with open(sys.argv[2]) as data_file:
 
 #pprint(data)
 
-fuzz=Fuzz(data, headers, xss, sqli)
+fuzz=Fuzz(data, headers, xss, sqli, xee)
 fuzz.fuzz()

