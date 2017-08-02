@@ -18,6 +18,9 @@ class Fuzz:
     GET_params={}
     GET_hints={}    # contains the hints that the fuzzer got to test attacks on specific GET_params
     POST_params={}
+    POST_hints={}
+    COOKIE_hints={}
+    HEADER_hints={}
     reached_id=0    # the fuzzer passes through all the requests and keep the reached_id as reference
 
     XSS_inj='<js>'
@@ -26,7 +29,7 @@ class Fuzz:
 
     # if a url points to a path in which the file has one of these extensions, then the request will be ignored
     # probably this mechanism is not good enough, especially if the backend has custom configuration
-    # but still it should be useful to skip unnecessary requests
+    # but still it should be useful to skip unnecessary requests (that don't trigger bugs)
     ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg'}
 
     def get_XSS_payload(self, paramName):
@@ -106,11 +109,12 @@ class Fuzz:
 
             if self.xss:
                 for hint in self.GET_hints[request['requestId']]:
-                    if (not hint&Hints.NOT_FOUND) and (not hint&Hints.FOUND_ESCAPED):
-                        if hint&Hints.URL:
+                    val = self.GET_hints[request['requestId']][hint]
+                    if (not val&Hints.NOT_FOUND) and (not val&Hints.FOUND_ESCAPED):
+                        if val&Hints.URL:
                             total+=len(self.requests) #count open redirect
                         total+=len(self.requests)
-            if self.sql:    # each XEE test take as many requests as the trace multiplied by the SQL payloads
+            if self.sqli:    # each XEE test take as many requests as the trace multiplied by the SQL payloads
                 for param in self.GET_params:
                     total+=len(Fuzz.SQL_inj)*lenNecessaryRequests
                 for param in self.POST_params:
@@ -184,13 +188,35 @@ class Fuzz:
         s = requests.Session()
         for request in self.requests:
             self.GET_hints[request['requestId']]={}
+            self.POST_hints[request['requestId']]={}
+            self.COOKIE_hints[request['requestId']]={}
+            self.HEADER_hints[request['requestId']]={}
         for request in self.requests:
+            prec_cookies = copy.deepcopy(s.cookies) # save cookies to check if they appear in the page
+            # probe GET/POST parameters
             if request['method']=='GET':
                 response=self.send_req(request['requestId'], s, request['url'], 'GET').text.encode('utf-8')
                 for param in self.GET_params[request['requestId']]:
                     self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
+            elif request['method']=='POST':
+                response=self.send_req(request['requestId'], s, request['url'], 'POST').text.encode('utf-8')
+                for param in self.GET_params[request['requestId']]:
+                    self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
+                if 'formData' in request['requestBody']:
+                    for param in self.POST_params[request['requestId']]['formData']:
+                        self.POST_hints[request['requestId']][param]=parseFuzz(response,request['requestBody']['formData'][param])
+            else:
+                raise ValueError('request method '+request['method']+" yet unsupported")
+            # probe cookies
+            for c in prec_cookies:
+                self.COOKIE_hints[request['requestId']][c.name]=parseFuzz(response, c.value)
+            #probe headers
+            for h in s.headers:
+                if h not in Fuzz.keepHeaders:
+                    self.HEADER_hints[request['requestId']][h]=parseFuzz(response,s.headers[h])
+
             for hint in self.GET_hints[request['requestId']]:
-                if not (hint&1):
+                if not (self.GET_hints[request['requestId']][hint]&1):
                     print 'got hint '+hint
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
@@ -206,17 +232,18 @@ class Fuzz:
             else:
                 break
 
-    def tillTheEnd(self):
+    def tillTheEnd(self, s):
         i=0
         while int(self.requests[i]['requestId'])<=self.reached_id:
             i+=1
-        while i<len(requests):
+        while i<len(self.requests):
             request=self.requests[i]
             if request['method']=='GET':
                 response= self.send_req(request['requestId'], s, request['url'],'GET').text.encode('utf-8')
             elif requests[i]['method']=='POST':
                 response= self.send_req(request['requestId'], s, request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
             Fuzz.verifyXSS(response)
+            i+=1
 
     @staticmethod
     def verifyXSS(response_text):

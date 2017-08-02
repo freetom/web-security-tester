@@ -8,7 +8,7 @@ if len(sys.argv) < 3:
     sys.exit('Usage: %s input_trace input_headers [--sqli] [--xss] [--xee]' % sys.argv[0])
 
 if len(sys.argv) < 4:
-    sys.exit('You have to provide at least a testing option ( --xss, --sqli, --xee)')
+    sys.exit('You have to provide at least a testing option ( --xss, --sqli, --xxe)')
 
 xss=False
 sqli=False
@@ -19,7 +19,7 @@ while i<len(sys.argv):
         xss=True
     elif sys.argv[i]=='--sqli':
         sqli=True
-    elif sys.argv[i]=='--xee':
+    elif sys.argv[i]=='--xxe':
         xee=True
     i+=1
 

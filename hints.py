@@ -13,12 +13,18 @@ class Hints():
   URL   =           0x20
   FILE  =           0x40
   XML   =           0x80
+  UNDEFINED =       0x100
 
 # is the param in the page  ? if yes, where ?
 def parseFuzz(httpResponse, paramValue):
+    #   TO FIX -- list and tuples are yet unsupported
+    if type(paramValue) is list or type(paramValue) is tuple:
+        return Hints.NOT_FOUND
+
     if paramValue=='':
         return Hints.NOT_FOUND
     ret = 0x0
+
     if urlparse(paramValue).netloc!='':
         ret |= Hints.URL
     if re.search('<.*>', paramValue):
