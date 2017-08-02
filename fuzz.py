@@ -106,8 +106,8 @@ class Fuzz:
 
             if self.xss:
                 for hint in self.GET_hints[request['requestId']]:
-                    if hint!=Hints.NOT_FOUND and hint!=Hints.FOUND_ESCAPED:
-                        if hint==Hints.URL:
+                    if (not hint&Hints.NOT_FOUND) and (not hint&Hints.FOUND_ESCAPED):
+                        if hint&Hints.URL:
                             total+=len(self.requests) #count open redirect
                         total+=len(self.requests)
             if self.sql:    # each XEE test take as many requests as the trace multiplied by the SQL payloads
@@ -117,7 +117,7 @@ class Fuzz:
                     total+=len(Fuzz.SQL_inj)*lenNecessaryRequests
             if self.xee:    # each XEE test take as many requests as the trace
                 for param in self.GET_params:
-                    if hint!=Hints.XML:
+                    if hint&Hints.XML:
                         total+=lenNecessaryRequests
                 for param in self.POST_params:
                     total+=lenNecessaryRequests
@@ -190,7 +190,7 @@ class Fuzz:
                 for param in self.GET_params[request['requestId']]:
                     self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
             for hint in self.GET_hints[request['requestId']]:
-                if hint!=1:
+                if not (hint&1):
                     print 'got hint '+hint
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
@@ -249,13 +249,13 @@ class Fuzz:
             # if the param result in the text unescaped try to inject
             hint = self.GET_hints[requestId][param]
             #print param+" "+str(hint)
-            if hint==Hints.NOT_FOUND:
+            if hint&Hints.NOT_FOUND:
                 return
-            elif hint!=Hints.FOUND_ESCAPED:
-                if hint==Hints.JS:
+            elif not (hint&Hints.FOUND_ESCAPED):
+                if hint&Hints.JS:
                     print "JS  found "+param+" "+url
                     exit()
-                if hint==Hints.URL:
+                if hint&Hints.URL:
                     print "FOUND URL"
                     self.testOpenRedirect(url, param, 'GET', requestId)
                 else:
