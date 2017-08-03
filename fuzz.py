@@ -78,7 +78,7 @@ class Fuzz:
             return s.post(url, params=post, verify=False)
         return None
 
-    def __init__(self, reqs, headers, xss, sqli, xee):
+    def __init__(self, reqs, headers, xss, sqli, xxe):
         self.requests= copy.deepcopy(reqs)
 
         # get params
@@ -103,7 +103,7 @@ class Fuzz:
         # copy testing flags
         self.xss=xss
         self.sqli=sqli
-        self.xee=xee
+        self.xxe=xxe
 
     def estimate_effort(self):
         total=0
@@ -120,12 +120,12 @@ class Fuzz:
                         if val&Hints.URL:
                             total+=len(self.requests) #count open redirect
                         total+=len(self.requests)
-            if self.sqli:    # each XEE test take as many requests as the trace multiplied by the SQL payloads
+            if self.sqli:    # each SQL test takes as many requests as the total number of requests required multiplied by the SQL payloads
                 for param in self.GET_params:
                     total+=len(Fuzz.SQL_inj)*lenNecessaryRequests
                 for param in self.POST_params:
                     total+=len(Fuzz.SQL_inj)*lenNecessaryRequests
-            if self.xee:    # each XEE test take as many requests as the trace
+            if self.xxe:    # each XXE test take as many requests as the trace
                 for param in self.GET_params:
                     if hint&Hints.XML:
                         total+=lenNecessaryRequests
@@ -148,8 +148,8 @@ class Fuzz:
                         self.testXSS('GET',request['url'],request['requestId'],param)
                     if self.sqli:
                         self.testSQL('GET',request['url'],request['requestId'],param)
-                    if self.xee:
-                        self.testXSS('GET',request['url'],request['requestId'],param)
+                    if self.xxe:
+                        self.testXXE('GET',request['url'],request['requestId'],param)
 
                 #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'GET').text.encode('utf-8')
             elif request['method']=='POST':
@@ -159,8 +159,8 @@ class Fuzz:
                             self.testXSS('POST',request['url'],request['requestId'],param,request['requestBody'])
                         if self.sqli:
                             self.testSQL('POST',request['url'],request['requestId'],param,request['requestBody'])
-                        if self.xee:
-                            self.testXSS('POST',request['url'],request['requestId'],param,request['requestBody'])
+                        if self.xxe:
+                            self.testXXE('POST',request['url'],request['requestId'],param,request['requestBody'])
 
                         #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'POST' , post=requests[i]['requestBody']).text.encode('utf-8')
 
