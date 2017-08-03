@@ -13,7 +13,7 @@ class Fuzz:
     keepHeaders={'Upgrade-Insecure-Requests', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language'}
     headers={}  # all the resulting filtered headers per each request
     requests=[] # all the requests
-    necessaryRequests={} # map requestId -> boolean to memorize if it's a required requets
+    necessaryRequests={} # map requestId -> boolean to memorize if it's a required request
     lenNecessaryRequests=None
     GET_params={}
     GET_hints={}    # contains the hints that the fuzzer got to test attacks on specific GET_params
@@ -33,8 +33,13 @@ class Fuzz:
     ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg'}
 
     def get_XSS_payload(self, paramName, paramValue):
-        # paramValue can be a list
-        return str(paramValue)+" "+Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
+        # paramValue can be a list / workaround
+        if type(paramValue) is list:
+            newVal=''.join(paramValue)
+        else:
+            newVal=paramValue
+
+        return str(newVal)+" "+Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
 
     def get_SQL_payload(self, index):
         if index<0 or index>=len(Fuzz.SQL_inj):
@@ -78,7 +83,7 @@ class Fuzz:
 
         # get params
         for request in self.requests:
-            # test from url if the request is a necessary one (e.g. not static content with no or trivial backend interaction)
+            # test from url if the request is a necessary one (e.g. not static content)
             self.necessaryRequests[request['requestId']]=Fuzz.to_test(request['url'])
             #print request['url']+" "+str(self.necessaryRequests[request['requestId']])
             self.GET_params[request['requestId']]=parse_qs(urlparse(request['url']).query)
@@ -236,8 +241,9 @@ class Fuzz:
 
     def tillTheEnd(self, s):
         i=0
-        while int(self.requests[i]['requestId'])<=self.reached_id:
+        while i<len(self.requests) and int(self.requests[i]['requestId'])<=self.reached_id:
             i+=1
+
         while i<len(self.requests):
             request=self.requests[i]
             if request['method']=='GET':
