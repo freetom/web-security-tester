@@ -5,7 +5,7 @@ from fuzz import Fuzz
 
 # should test for XSS,SQLI,open-redirect
 if len(sys.argv) < 3:
-    sys.exit('Usage: %s input_trace input_headers [--sqli] [--xss] [--xee]' % sys.argv[0])
+    sys.exit('Usage: %s input_trace input_headers [--sqli] [--xss] [--xxe]' % sys.argv[0])
 
 if len(sys.argv) < 4:
     sys.exit('You have to provide at least a testing option ( --xss, --sqli, --xxe)')

@@ -17,20 +17,22 @@ class Hints():
 
 # is the param in the page  ? if yes, where ?
 def parseFuzz(httpResponse, paramValue):
-    #   TO FIX -- list and tuples are yet unsupported
+    #   workaround for list of params (it happens in POSTs)-- it should work
     if type(paramValue) is list or type(paramValue) is tuple:
-        return Hints.NOT_FOUND
+        actualValue=''.join(paramValue)
+    else:
+        actualValue=paramValue
 
-    if paramValue=='':
+    if actualValue=='':
         return Hints.NOT_FOUND
     ret = 0x0
 
-    if urlparse(paramValue).netloc!='':
+    if urlparse(actualValue).netloc!='':
         ret |= Hints.URL
-    if re.search('<.*>', paramValue):
+    if re.search('<.*>', actualValue):
         ret |= Hints.XML
     try:
-        originalIndex=httpResponse.index(paramValue)
+        originalIndex=httpResponse.index(actualValue)
         #check if it's into a script
         index1=originalIndex
         while index1<len(httpResponse):
@@ -57,9 +59,9 @@ def parseFuzz(httpResponse, paramValue):
         return ret
     except:
         # check if it has been escaped
-        paramValue=html.escape(paramValue)
+        actualValue=html.escape(actualValue)
         try:
-            httpResponse.index(paramValue)
+            httpResponse.index(actualValue)
             ret |= FOUND_ESCAPED
         except:
             ret |= Hints.NOT_FOUND
