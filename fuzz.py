@@ -32,8 +32,9 @@ class Fuzz:
     # but still it should be useful to skip unnecessary requests (that don't trigger bugs)
     ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg'}
 
-    def get_XSS_payload(self, paramName):
-        return Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
+    def get_XSS_payload(self, paramName, paramValue):
+        # paramValue can be a list
+        return str(paramValue)+" "+Fuzz.XSS_inj+str(self.reached_id)+paramName+Fuzz.XSS_inj
 
     def get_SQL_payload(self, index):
         if index<0 or index>=len(Fuzz.SQL_inj):
@@ -287,7 +288,7 @@ class Fuzz:
                     print "FOUND URL"
                     self.testOpenRedirect(url, param, 'GET', requestId)
                 else:
-                    newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param))
+                    newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param, self.GET_params[requestId][param]))
             else:
                 return
 
@@ -302,7 +303,7 @@ class Fuzz:
             print param
         elif method=='POST':
             newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=self.get_XSS_payload(param)
+            newPost['formData'][param]=self.get_XSS_payload(param, postData['formData'][param])
             self.catchUp(s)
             response = self.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
             Fuzz.verifyXSS(response)

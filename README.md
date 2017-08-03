@@ -19,6 +19,9 @@ By default the tester inject simple and not harmful payloads to just test if it 
 
 The tester at the moment supports XSS, open redirects, SQLI, XXE. However, more cases has to be tested, especially for SQLI and better interpretation of the server response. XSS atm doesn't support injections in cookies or headers. Furthermore, other classes of vulnerabilities should become supported as well (regarding files and cmd injections).
 
+Code has to be refactored. Bypassing of CSRF tokens has to be implemented. Can't emulate traces with the old CSRF tokens.
+
+
 ## Contributing
 
 Feel free to contribute. Needs for testing, ideas, developing
