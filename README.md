@@ -1,10 +1,10 @@
-# web-tester
-semi automated testing of web backends
+# web-security-tester
+grey-box semi-automated tester for web backends
 
 ## Raison d'être
-Typical bugs in web applications result in unauthorized read/write acces to data as well as unauthorized control of the server machine. There are mainly two ways to find them: reviewing the code or testing. Manual testing is time expensive while reviewing code isn't always possible. Manual testing might require repetitive tasks to extensively assert that the code base is secure, especially if the source code is not available.
+Typical bugs in web applications result in unauthorized read/write acces to data as well as unauthorized control of the server machine. Developers should be aware of standard security practices of the language they are using to prevent security flaws. To find bugs there are mainly two ways: reviewing the code or testing. Manual testing is time expensive while reviewing code isn't always possible. Manual testing might require repetitive tasks to extensively assert that the code base is secure, especially if the source is not available. Code reviews, other than being not always possible might be a real hassle if the code has been badly written.
 
-This software is a grey-box, semi-automated testing for standard classes of web vulnerabilities such as: XSS, SQLI, open redirects, XXE, etc. The ideal solution would substitute the operation of manually testing by automating the finding of several classes of vulnerabilities with good chances.
+This software is a grey-box, semi-automated tester for standard classes of web vulnerabilities such as: XSS, SQLI, open redirects, XXE, etc. The ideal solution would substitute the operation of manually testing by automating the research of several classes of vulnerabilities with good chances.
 
 ## Scheme
 The tester is based on reproducing web traces from [web-tracker](https://github.com/freetom/web-tracker/)
