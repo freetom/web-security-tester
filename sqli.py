@@ -7,7 +7,7 @@ class SQLI:
         self.fuzz = fuzz
 
     def get_SQL_payload(self, index):
-        if index<0 or index>=len(Fuzz.SQL_inj):
+        if index<0 or index>=len(SQLI.SQL_inj):
             raise ValueError('index not in range of SQL_inj')
         return SQL_inj[index]
 
@@ -32,21 +32,21 @@ class SQLI:
     def testSQL(self, method, url, requestId, param, postData=None):
         s=requests.Session()
         if method=='GET':
-            for i in range(len(Fuzz.SQL_inj)):
+            for i in range(len(SQLI.SQL_inj)):
                 newUrl = Fuzz.substParam(url,param,self.get_SQL_payload(i))
-                self.catchUp(s)
+                self.fuzz.catchUp(s)
                 print "Attempting GET SQLI on "+param
-                response = self.send_req(requestId, s, newUrl, 'GET')
+                response = self.fuzz.send_req(requestId, s, newUrl, 'GET')
                 if self.verifySQL(response, param, requestId):
                     break
-                self.tillTheEnd(s)
+                self.fuzz.tillTheEnd(s)
         elif method=='POST':
-            for i in range(len(Fuzz.SQL_inj)):
+            for i in range(len(self.fuzz.SQL_inj)):
                 newPost=copy.deepcopy(postData)
                 newPost['formData'][param]=self.get_SQL_payload(i)
-                self.catchUp(s)
+                self.fuzz.catchUp(s)
                 print "Attempting GET SQLI on "+param
-                response = self.send_req(requestId, s, url, 'POST', post=newPost)
+                response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost)
                 if self.verifySQL(response, param, requestId):
                     break
-                self.tillTheEnd(s)
+                self.fuzz.tillTheEnd(s)

@@ -35,7 +35,7 @@ class Fuzz:
     xss = None  #   ref to instance of XSS class, to test for XSS
     sqli = None #   ref to instance of SQLI class, to test for SQLI
     xxe = None  #   ref to instance of XXE class, to test for XXE
-    
+
     #return whether an url of a request is required to be tested for injections
     @staticmethod
     def to_test(url):
@@ -59,9 +59,9 @@ class Fuzz:
         sleep(Fuzz.requestWaitTime)
         self.put_headers(s,requestId)
         if method=='GET':
-            return s.get(url,verify=False)
+            return s.get(url)
         elif method=='POST':
-            return s.post(url, params=post, verify=False)
+            return s.post(url, params=post)
         return None
 
     def __init__(self, reqs, headers, xss, sqli, xxe):

