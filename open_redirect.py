@@ -1,3 +1,6 @@
+import requests
+
+from hints import *
 from vulnerability_class import VulnerabilityClass
 
 class OpenRedirect(VulnerabilityClass):
@@ -7,6 +10,15 @@ class OpenRedirect(VulnerabilityClass):
 
     def __init__(self, fuzz):
         self.fuzz = fuzz
+
+    def estimate_effort(self):
+        total=0
+        for request in self.fuzz.requests:
+            for param in self.fuzz.GET_hints[request['requestId']]:
+                val = self.fuzz.GET_hints[request['requestId']][param]
+                if val&Hints.URL:
+                    total+=lenNecessaryRequests #count open redirect
+        return total
 
     @staticmethod
     def verifyRedirect(response):

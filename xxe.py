@@ -1,3 +1,6 @@
+import requests
+
+from hints import *
 from vulnerability_class import VulnerabilityClass
 
 class XXE(VulnerabilityClass):
@@ -6,6 +9,17 @@ class XXE(VulnerabilityClass):
 
     def __init__(self, fuzz):
         self.fuzz = fuzz
+
+    def estimate_effort(self):
+        total=0
+        for request in self.fuzz.requests:
+            for param in self.fuzz.GET_params:
+                if hint&Hints.XML:
+                    total+=lenNecessaryRequests
+            for param in self.fuzz.POST_params:
+                if hint&Hints.XML:
+                    total+=lenNecessaryRequests
+        return total
 
     # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
     def get_payload(self):

@@ -26,12 +26,12 @@ class Fuzz:
     POST_hints={}
     COOKIE_hints={}
     HEADER_hints={}
-    reached_id=0    # the fuzzer passes through all the requests and keep the reached_id as reference
+    reached_id=0    # the fuzzer walks through all the requests and keep the reached_id as reference
 
     # if a url points to a path in which the file has one of these extensions, then the request will be ignored
     # probably this mechanism is not good enough, especially if the backend has custom configuration
     # but still it should be useful to skip unnecessary requests (that don't trigger bugs)
-    ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg', 'ico', 'avi'}
+    ignored_extensions={'jpg', 'jpeg', 'mp3', 'mp4', 'png', 'tiff', 'bmp', 'wav', 'ogg', 'ico', 'avi', 'html', 'js'}
 
     xss = None  #   ref to instance of XSS class, to test for XSS
     sqli = None #   ref to instance of SQLI class, to test for SQLI
@@ -102,29 +102,14 @@ class Fuzz:
 
     def estimate_effort(self):
         total=0
-        for request in self.requests:
-            if self.xss:
-                for hint in self.GET_hints[request['requestId']]:
-                    val = self.GET_hints[request['requestId']][hint]
-                    if (not val&Hints.NOT_FOUND) and (not val&Hints.FOUND_ESCAPED):
-                        total+=len(self.requests)
-            if self.sqli:    # each SQL test takes as many requests as the total number of requests required multiplied by the SQL payloads
-                for param in self.GET_params:
-                    total+=len(SQLI.SQL_inj)*lenNecessaryRequests
-                for param in self.POST_params:
-                    total+=len(SQLI.SQL_inj)*lenNecessaryRequests
-            if self.xxe:    # each XXE test take as many requests as the trace
-                for param in self.GET_params:
-                    if hint&Hints.XML:
-                        total+=lenNecessaryRequests
-                for param in self.POST_params:
-                    if hint&Hints.XML:
-                        total+=lenNecessaryRequests
-            if self.open_redirect:
-                for hint in self.GET_hints[request['requestId']]:
-                    val = self.GET_hints[request['requestId']][hint]
-                    if val&Hints.URL:
-                        total+=len(self.requests) #count open redirect
+        if self.xss:
+            total+=self.xss.estimate_effort()
+        if self.sqli:
+            total+=self.sqli.estimate_effort()
+        if self.xxe:
+            total+=self.xxe.estimate_effort()
+        if self.open_redirect:
+            total+=self.open_redirect.estimate_effort()
 
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."

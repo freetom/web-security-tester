@@ -1,3 +1,6 @@
+import requests
+
+from hints import *
 from vulnerability_class import VulnerabilityClass
 
 class SQLI(VulnerabilityClass):
@@ -7,6 +10,16 @@ class SQLI(VulnerabilityClass):
 
     def __init__(self, fuzz):
         self.fuzz = fuzz
+
+    def estimate_effort(self):
+        # each SQL test takes as many requests as the total number of requests required multiplied by the SQL payloads
+        total=0
+        for request in self.fuzz.requests:
+            for param in self.fuzz.GET_params:
+                total+=len(SQLI.SQL_inj)*lenNecessaryRequests
+            for param in self.fuzz.POST_params:
+                total+=len(SQLI.SQL_inj)*lenNecessaryRequests
+        return total
 
     def get_payload(self, index):
         if index<0 or index>=len(SQLI.SQL_inj):
