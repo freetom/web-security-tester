@@ -5,14 +5,15 @@ from fuzz import Fuzz
 
 # should test for XSS,SQLI,open-redirect
 if len(sys.argv) < 3:
-    sys.exit('Usage: %s input_trace input_headers [--sqli] [--xss] [--xxe]' % sys.argv[0])
+    sys.exit('Usage: %s input_trace input_headers [--sqli] [--xss] [--xxe] [--open-redirect]' % sys.argv[0])
 
 if len(sys.argv) < 4:
-    sys.exit('You have to provide at least a testing option ( --xss, --sqli, --xxe)')
+    sys.exit('You have to provide at least a testing option ( --xss, --sqli, --xxe, --open-redirect)')
 
 xss=False
 sqli=False
 xxe=False
+open_redirect=False
 i=3
 while i<len(sys.argv):
     if sys.argv[i]=='--xss':
@@ -21,6 +22,8 @@ while i<len(sys.argv):
         sqli=True
     elif sys.argv[i]=='--xxe':
         xxe=True
+    elif sys.argv[i]=='--open-redirect':
+        open_redirect=True
     i+=1
 
 with open(sys.argv[1]) as data_file:
@@ -30,5 +33,5 @@ with open(sys.argv[2]) as data_file:
 
 #pprint(data)
 
-fuzz=Fuzz(data, headers, xss, sqli, xxe)
+fuzz=Fuzz(data, headers, xss, sqli, xxe, open_redirect)
 fuzz.fuzz()

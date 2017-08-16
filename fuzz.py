@@ -8,6 +8,7 @@ import re
 from xss import XSS
 from sqli import SQLI
 from xxe import XXE
+from open_redirect import OpenRedirect
 
 # This class fuzzes web applications by mutating parameters of genuine requests
 # The goal is to have an extensive mechanism to thoroughly test for standard vulnerabilities
@@ -35,6 +36,7 @@ class Fuzz:
     xss = None  #   ref to instance of XSS class, to test for XSS
     sqli = None #   ref to instance of SQLI class, to test for SQLI
     xxe = None  #   ref to instance of XXE class, to test for XXE
+    open_redirect = None
 
     #return whether an url of a request is required to be tested for injections
     @staticmethod
@@ -55,16 +57,18 @@ class Fuzz:
 
     def send_req(self, requestId, s, url, method, post=None):
         if requestId not in self.necessaryRequests or self.necessaryRequests[requestId]==False:
-            return
+            return None
         sleep(Fuzz.requestWaitTime)
         self.put_headers(s,requestId)
         if method=='GET':
             return s.get(url)
         elif method=='POST':
             return s.post(url, params=post)
+        else:
+            raise ValueError('Unsupported method: '+method)
         return None
 
-    def __init__(self, reqs, headers, xss, sqli, xxe):
+    def __init__(self, reqs, headers, xss, sqli, xxe, open_redirect):
         self.requests= copy.deepcopy(reqs)
 
         # get params
@@ -93,6 +97,8 @@ class Fuzz:
             self.sqli = SQLI(self)
         if xxe:
             self.xxe = XXE(self)
+        if open_redirect:
+            self.open_redirect = OpenRedirect(self)
 
     def estimate_effort(self):
         total=0
@@ -101,8 +107,6 @@ class Fuzz:
                 for hint in self.GET_hints[request['requestId']]:
                     val = self.GET_hints[request['requestId']][hint]
                     if (not val&Hints.NOT_FOUND) and (not val&Hints.FOUND_ESCAPED):
-                        if val&Hints.URL:
-                            total+=len(self.requests) #count open redirect
                         total+=len(self.requests)
             if self.sqli:    # each SQL test takes as many requests as the total number of requests required multiplied by the SQL payloads
                 for param in self.GET_params:
@@ -116,6 +120,12 @@ class Fuzz:
                 for param in self.POST_params:
                     if hint&Hints.XML:
                         total+=lenNecessaryRequests
+            if self.open_redirect:
+                for hint in self.GET_hints[request['requestId']]:
+                    val = self.GET_hints[request['requestId']][hint]
+                    if val&Hints.URL:
+                        total+=len(self.requests) #count open redirect
+
         total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
 
@@ -129,22 +139,26 @@ class Fuzz:
             if request['method']=='GET':
                 for param in self.GET_params[request['requestId']]:
                     if self.xss:
-                        self.xss.testXSS('GET',request['url'],request['requestId'],param)
+                        self.xss.test('GET',request['url'],request['requestId'],param)
                     if self.sqli:
-                        self.sqli.testSQL('GET',request['url'],request['requestId'],param)
+                        self.sqli.test('GET',request['url'],request['requestId'],param)
                     if self.xxe:
-                        self.xxe.testXXE('GET',request['url'],request['requestId'],param)
+                        self.xxe.test('GET',request['url'],request['requestId'],param)
+                    if self.open_redirect:
+                        self.open_redirect.test('GET',request['url'],request['requestId'],param)
 
                 #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'GET').text.encode('utf-8')
             elif request['method']=='POST':
                 if 'formData' in request['requestBody']:
                     for param in request['requestBody']['formData']:
                         if self.xss:
-                            self.xss.testXSS('POST',request['url'],request['requestId'],param,request['requestBody'])
+                            self.xss.test('POST',request['url'],request['requestId'],param,request['requestBody'])
                         if self.sqli:
-                            self.sqli.testSQL('POST',request['url'],request['requestId'],param,request['requestBody'])
+                            self.sqli.test('POST',request['url'],request['requestId'],param,request['requestBody'])
                         if self.xxe:
-                            self.xxe.testXXE('POST',request['url'],request['requestId'],param,request['requestBody'])
+                            self.xxe.test('POST',request['url'],request['requestId'],param,request['requestBody'])
+                        if self.open_redirect:
+                            self.open_redirect.test('POST',request['url'],request['requestId'],param,request['requestBody'])
 
                         #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'POST' , post=requests[i]['requestBody']).text.encode('utf-8')
 
@@ -183,6 +197,8 @@ class Fuzz:
             self.COOKIE_hints[request['requestId']]={}
             self.HEADER_hints[request['requestId']]={}
         for request in self.requests:
+            if request['requestId'] not in self.necessaryRequests or self.necessaryRequests[request['requestId']]==False:
+                continue
             prec_cookies = copy.deepcopy(s.cookies) # save cookies to check if they appear in the page
             # probe GET/POST parameters
             if request['method']=='GET':
@@ -219,7 +235,7 @@ class Fuzz:
                     response = self.send_req(request['requestId'], s,request['url'], 'GET').text.encode('utf-8')
                 elif request['method']=='POST':
                     response = self.send_req(request['requestId'], s,request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
-                XSS.verifyXSS(response)
+                XSS.verify(response)
             else:
                 break
 
@@ -234,5 +250,5 @@ class Fuzz:
                 response= self.send_req(request['requestId'], s, request['url'],'GET').text.encode('utf-8')
             elif requests[i]['method']=='POST':
                 response= self.send_req(request['requestId'], s, request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
-            XSS.verifyXSS(response)
+            XSS.verify(response)
             i+=1

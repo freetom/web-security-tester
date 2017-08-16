@@ -1,4 +1,6 @@
-class SQLI:
+from vulnerability_class import VulnerabilityClass
+
+class SQLI(VulnerabilityClass):
     fuzz = None
 
     SQL_inj={'1\'; sleep(3)--', '1; sleep(3)--', '1\'); sleep(3)--', '1); sleep(3)--'}
@@ -6,12 +8,12 @@ class SQLI:
     def __init__(self, fuzz):
         self.fuzz = fuzz
 
-    def get_SQL_payload(self, index):
+    def get_payload(self, index):
         if index<0 or index>=len(SQLI.SQL_inj):
             raise ValueError('index not in range of SQL_inj')
         return SQL_inj[index]
 
-    def verifySQL(self, response, param, requestId):
+    def verify(self, response, param, requestId):
         if response.status_code>=500:
             print "Potential SQLI in "+param+" id:"+requestId
             return True
@@ -29,7 +31,7 @@ class SQLI:
             return False
 
     # for each test, try each injection string and verify
-    def testSQL(self, method, url, requestId, param, postData=None):
+    def test(self, method, url, requestId, param, postData=None):
         s=requests.Session()
         if method=='GET':
             for i in range(len(SQLI.SQL_inj)):

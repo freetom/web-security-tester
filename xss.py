@@ -1,4 +1,6 @@
-class XSS:
+from vulnerability_class import VulnerabilityClass
+
+class XSS(VulnerabilityClass):
     fuzz=None
 
     XSS_inj='<js>'
@@ -7,7 +9,7 @@ class XSS:
     def __init__(self, fuzz):
         self.fuzz = fuzz
 
-    def get_XSS_payload(self, paramName, paramValue):
+    def get_payload(self, paramName, paramValue):
         # paramValue can be a list / workaround
         if type(paramValue) is list:
           newVal=''.join(paramValue)
@@ -16,14 +18,7 @@ class XSS:
         return str(newVal)+" "+XSS.XSS_inj+str(self.fuzz.reached_id)+paramName+XSS.XSS_inj
 
     @staticmethod
-    def verifyRedirect(response):
-        if len(response.history)>0:
-            if XSS.testURL in response.url:
-                print "FOUND OPEN REDIRECT"
-                exit()
-
-    @staticmethod
-    def verifyXSS(response_text):
+    def verify(response_text):
         if XSS.XSS_inj in response_text:
             print "XSS found !!"
             index=response_text.index(XSS.XSS_inj)+len(XSS.XSS_inj)
@@ -31,16 +26,7 @@ class XSS:
             return True
         return False
 
-    def testOpenRedirect(self, url, param, method, requestId, post_=None):
-        #test for Open-redirect
-        s=requests.Session()
-        self.fuzz.catchUp(s)
-        newUrl = Fuzz.substParam(url,param,XSS.testURL)
-        response = self.fuzz.send_req(requestId, s, newUrl, method)
-        XSS.verifyRedirect(response)
-        self.fuzz.tillTheEnd(s) #follow the remaining requests to check for the redirect
-
-    def testXSS(self, method, url, requestId, param, postData=None):
+    def test(self, method, url, requestId, param, postData=None):
         s = requests.Session()
         if method=='GET':
             # if the param result in the text unescaped try to inject
@@ -52,9 +38,6 @@ class XSS:
                 if hint&Hints.JS:
                     print "JS  found "+param+" "+url
                     exit()
-                if hint&Hints.URL:
-                    print "FOUND URL"
-                    self.testOpenRedirect(url, param, 'GET', requestId)
                 else:
                     newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param, self.fuzz.GET_params[requestId][param]))
             else:

