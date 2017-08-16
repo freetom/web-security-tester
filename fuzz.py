@@ -73,7 +73,6 @@ class Fuzz:
         self.requests= copy.deepcopy(reqs)
         self.responses = copy.deepcopy(responses)
 
-        # get params
         for request in self.requests:
             # test from url if the request is a necessary one (e.g. not static content)
             self.necessaryRequests[request['requestId']]=Fuzz.to_test(request['url'])
@@ -92,7 +91,6 @@ class Fuzz:
             for requestHeaders in header['requestHeaders']:
                 if requestHeaders['name'] in Fuzz.keepHeaders:
                     self.headers[header['requestId']][requestHeaders['name']]=requestHeaders['value']
-        # copy testing flags
         if xss:
             self.xss = XSS(self)
         if sqli:
@@ -102,7 +100,7 @@ class Fuzz:
         if open_redirect:
             self.open_redirect = OpenRedirect(self)
 
-        print 'Loaded a trace of '+len(self.requests)+' requests'
+        print 'Loaded a trace of '+str(len(self.requests))+' requests'
 
     def estimate_effort(self):
         total=0
@@ -265,7 +263,6 @@ class Fuzz:
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):
-        #print "len: "+str(len(self.requests))
         for request in self.requests:
             if int(request['requestId'])<self.reached_id:
                 if request['method']=='GET':

@@ -8,7 +8,6 @@ class XSS(VulnerabilityClass):
     fuzz=None
 
     XSS_inj='<js>'
-    testURL='http://www.ciao.com'
 
     def __init__(self, fuzz):
         self.fuzz = fuzz
@@ -17,10 +16,10 @@ class XSS(VulnerabilityClass):
         total = 0
         for request in self.fuzz.requests:
             for param in self.fuzz.GET_hints[request['requestId']]:
-                if hasToBeTested(self.fuzz.GET_hints[request['requestId']][param]):
+                if XSS.hasToBeTested(self.fuzz.GET_hints[request['requestId']][param]):
                     total+=self.fuzz.lenNecessaryRequests
             for param in self.fuzz.POST_hints[request['requestId']]:
-                if hasToBeTested(self.fuzz.POST_hints[request['requestId']][param]):
+                if XSS.hasToBeTested(self.fuzz.POST_hints[request['requestId']][param]):
                     total+=self.fuzz.lenNecessaryRequests
         print str(total)+" requests required to test for XSS"
         return total
@@ -90,7 +89,7 @@ class XSS(VulnerabilityClass):
         print newPost
         print "##################"
 
-    # function to test a certain request and a certain parameter
+    # function to test a certain request with a certain parameter
     #   method indicates which type of param is param
     #   actualMethod indicates the actual type of the request
     #   the previous clarification is needed to test GET parameters of POST requests
@@ -100,4 +99,4 @@ class XSS(VulnerabilityClass):
         if method=='GET':
             self.testGET(method, url, requestId, param, actualMethod, postData)
         elif method=='POST':
-            self.testGET(method, url, requestId, param, postData)
+            self.testPOST(method, url, requestId, param, postData)
