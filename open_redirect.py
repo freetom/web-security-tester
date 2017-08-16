@@ -16,9 +16,12 @@ class OpenRedirect(VulnerabilityClass):
         total=0
         for request in self.fuzz.requests:
             for param in self.fuzz.GET_hints[request['requestId']]:
-                val = self.fuzz.GET_hints[request['requestId']][param]
-                if val&Hints.URL:
+                if hasToBeTested(self.fuzz.GET_hints[request['requestId']][param]):
+                    total+=self.fuzz.lenNecessaryRequests
+            for param in self.fuzz.POST_hints[request['requestId']]:
+                if hasToBeTested(self.fuzz.POST_hints[request['requestId']][param]):
                     total+=self.fuzz.lenNecessaryRequests #count open redirect
+
         print str(total)+" requests required to test for open-redirects"
         return total
 

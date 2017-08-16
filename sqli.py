@@ -46,16 +46,17 @@ class SQLI(VulnerabilityClass):
                 pass
             return False
 
-    # for each test, try each injection string and verify
+    # for each test, inject a param and verify
     def test(self, method, url, requestId, param, postData=None, actualMethod=None):
+        assert not (method=='GET' and actualMethod==None)
         s=requests.Session()
         if method=='GET':
             for i in range(len(SQLI.SQL_inj)):
                 newUrl = fuzz.Fuzz.substParam(url,param,self.get_payload(i))
                 self.fuzz.catchUp(s)
-                print "Attempting GET SQLI on "+param
-                response = self.fuzz.send_req(requestId, s, newUrl, 'GET')
-                if self.verifySQL(response, param, requestId):
+                print 'Attempting SQLI on GET '+param+' requestId: '+requestId
+                response = self.fuzz.send_req(requestId, s, newUrl, actualMethod, post=postData)
+                if self.verify(response, param, requestId):
                     break
                 self.fuzz.tillTheEnd(s)
         elif method=='POST':
@@ -63,8 +64,8 @@ class SQLI(VulnerabilityClass):
                 newPost=copy.deepcopy(postData)
                 newPost['formData'][param]=self.get_payload(i)
                 self.fuzz.catchUp(s)
-                print "Attempting GET SQLI on "+param
+                print 'Attempting POST SQLI on '+param+' requestId: '+requestId
                 response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost)
-                if self.verifySQL(response, param, requestId):
+                if self.verify(response, param, requestId):
                     break
                 self.fuzz.tillTheEnd(s)

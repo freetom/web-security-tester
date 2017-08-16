@@ -102,6 +102,8 @@ class Fuzz:
         if open_redirect:
             self.open_redirect = OpenRedirect(self)
 
+        print 'Loaded a trace of '+len(self.requests)+' requests'
+
     def estimate_effort(self):
         total=0
         if self.xss:

@@ -39,17 +39,18 @@ class XXE(VulnerabilityClass):
             return False
 
     def test(self, method, url, requestId, param, postData=None, actualMethod=None):
+        assert not (method=='GET' and actualMethod==None)
         s=requests.Session()
         if method=='GET':
             newUrl = fuzz.Fuzz.substParam(url,param,self.get_payload())
             self.fuzz.catchUp(s)
-            response = self.fuzz.send_req(requestId, s, newUrl, 'GET')
-            print "Attempting GET XXE on "+param
-            self.verifyXXE(response, param, requestId)
+            response = self.fuzz.send_req(requestId, s, newUrl, actualMethod, post=postData)
+            print 'Attempting XXE on GET '+param+' requestId: '+requestId
+            self.verify(response, param, requestId)
         elif method=='POST':
             newPost=copy.deepcopy(postData)
             newPost['formData'][param]=self.get_payload()
             self.fuzz.catchUp(s)
             response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost)
-            print "Attempting GET XXE on "+param
-            self.verifyXXE(response, param, requestId)
+            print 'Attempting XXE on POST '+param+' requestId: '+requestId
+            self.verify(response, param, requestId)
