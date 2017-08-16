@@ -18,7 +18,8 @@ class XSS(VulnerabilityClass):
             for param in self.fuzz.GET_hints[request['requestId']]:
                 val = self.fuzz.GET_hints[request['requestId']][param]
                 if (not val&Hints.NOT_FOUND) and (not val&Hints.FOUND_ESCAPED):
-                    total+=lenNecessaryRequests
+                    total+=self.fuzz.lenNecessaryRequests
+        print str(total)+" requests required to test for XSS"
         return total
 
     def get_payload(self, paramName, paramValue):
@@ -38,40 +39,60 @@ class XSS(VulnerabilityClass):
             return True
         return False
 
-    def test(self, method, url, requestId, param, postData=None):
+    #   returns True whether a param with a certain hint has to be tested against XSS
+    def hasToBeTested(hint):
+        # if the param result in the HTTP response unescaped try to inject
+        if hint&Hints.NOT_FOUND:
+            return False
+        elif not (hint&Hints.FOUND_ESCAPED):
+            if hint&Hints.JS:
+                print "JS  found "+param+" "+url
+                exit()
+            else:
+                return True
+        else:
+            return False
+
+    # function to test a GET parameter
+    def testGET(self, method, url, requestId, param, actualMethod='GET', postData=None):
+        if not hasToBeTested(self.fuzz.GET_hints[requestId][param]):
+            return
+
+        newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param, self.fuzz.GET_params[requestId][param]))
+        #print param+" "+str(hint)
+
+        self.fuzz.catchUp(s)
+        response = self.fuzz.send_req(requestId, s, newUrl, actualMethod, params=postData).text.encode('utf-8')
+        XSS.verifyXSS(response)
+        self.fuzz.tillTheEnd(s)
+
+        print "##################"
+        print newUrl
+        print "##################"
+        print param
+
+    def testPOST(self, method, url, requestId, param, postData):
+        if not hasToBeTested(self.fuzz.POST_hints[requestId][param]):
+            return
+
+        newPost=copy.deepcopy(postData)
+        newPost['formData'][param]=self.get_XSS_payload(param, postData['formData'][param])
+        self.fuzz.catchUp(s)
+        response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
+        XSS.verifyXSS(response)
+        self.fuzz.tillTheEnd(s)
+
+        print "##################"
+        print newPost
+        print "##################"
+
+    # function to test a certain request and a certain parameter
+    #   method indicates which type of param is param
+    #   actualMethod indicates the actual type of the request
+    #   the previous clarification is needed to test GET parameters of POST requests
+    def test(self, method, url, requestId, param, postData=None, actualMethod=None):
         s = requests.Session()
         if method=='GET':
-            # if the param result in the text unescaped try to inject
-            hint = self.fuzz.GET_hints[requestId][param]
-            #print param+" "+str(hint)
-            if hint&Hints.NOT_FOUND:
-                return
-            elif not (hint&Hints.FOUND_ESCAPED):
-                if hint&Hints.JS:
-                    print "JS  found "+param+" "+url
-                    exit()
-                else:
-                    newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param, self.fuzz.GET_params[requestId][param]))
-            else:
-                return
-
-            self.fuzz.catchUp(s)
-            response = self.fuzz.send_req(requestId, s, newUrl, 'GET').text.encode('utf-8')
-            XSS.verifyXSS(response)
-            self.fuzz.tillTheEnd(s)
-
-            print "##################"
-            print newUrl
-            print "##################"
-            print param
+            self.testGET(method, url, requestId, param, actualMethod, postData)
         elif method=='POST':
-            newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=self.get_XSS_payload(param, postData['formData'][param])
-            self.fuzz.catchUp(s)
-            response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
-            XSS.verifyXSS(response)
-            self.fuzz.tillTheEnd(s)
-
-            print "##################"
-            print newPost
-            print "##################"
+            self.testGET(method, url, requestId, param, postData)

@@ -15,10 +15,11 @@ class XXE(VulnerabilityClass):
         for request in self.fuzz.requests:
             for param in self.fuzz.GET_params:
                 if hint&Hints.XML:
-                    total+=lenNecessaryRequests
+                    total+=self.fuzz.lenNecessaryRequests
             for param in self.fuzz.POST_params:
                 if hint&Hints.XML:
-                    total+=lenNecessaryRequests
+                    total+=self.fuzz.lenNecessaryRequests
+        print str(total)+" requests required to test for XXE"
         return total
 
     # from https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing
@@ -36,7 +37,7 @@ class XXE(VulnerabilityClass):
         except:
             return False
 
-    def test(self, method, url, requestId, param, postData=None):
+    def test(self, method, url, requestId, param, postData=None, actualMethod=None):
         s=requests.Session()
         if method=='GET':
             newUrl = Fuzz.substParam(url,param,self.get_XXE_payload())

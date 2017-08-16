@@ -16,9 +16,10 @@ class SQLI(VulnerabilityClass):
         total=0
         for request in self.fuzz.requests:
             for param in self.fuzz.GET_params:
-                total+=len(SQLI.SQL_inj)*lenNecessaryRequests
+                total+=len(SQLI.SQL_inj)*self.fuzz.lenNecessaryRequests
             for param in self.fuzz.POST_params:
-                total+=len(SQLI.SQL_inj)*lenNecessaryRequests
+                total+=len(SQLI.SQL_inj)*self.fuzz.lenNecessaryRequests
+        print str(total)+" requests required to test for SQLI"
         return total
 
     def get_payload(self, index):
@@ -45,7 +46,7 @@ class SQLI(VulnerabilityClass):
             return False
 
     # for each test, try each injection string and verify
-    def test(self, method, url, requestId, param, postData=None):
+    def test(self, method, url, requestId, param, postData=None, actualMethod=None):
         s=requests.Session()
         if method=='GET':
             for i in range(len(SQLI.SQL_inj)):

@@ -17,11 +17,15 @@ class OpenRedirect(VulnerabilityClass):
             for param in self.fuzz.GET_hints[request['requestId']]:
                 val = self.fuzz.GET_hints[request['requestId']][param]
                 if val&Hints.URL:
-                    total+=lenNecessaryRequests #count open redirect
+                    total+=self.fuzz.lenNecessaryRequests #count open redirect
+        print str(total)+" requests required to test for open-redirects"
         return total
 
+    def get_payload():
+        return OpenRedirect.testURL
+
     @staticmethod
-    def verifyRedirect(response):
+    def verify(response):
         if len(response.history)>0:
             if OpenRedirect.testURL in response.url:
                 print "FOUND OPEN REDIRECT"
@@ -33,10 +37,10 @@ class OpenRedirect(VulnerabilityClass):
         self.fuzz.catchUp(s)
         newUrl = Fuzz.substParam(url,param,OpenRedirect.testURL)
         response = self.fuzz.send_req(requestId, s, newUrl, method)
-        OpenRedirect.verifyRedirect(response)
+        OpenRedirect.verify(response)
         self.fuzz.tillTheEnd(s) #follow the remaining requests to check for the redirect
 
-    def test(self, method, url, requestId, param, postData=None):
+    def test(self, method, url, requestId, param, postData=None, actualMethod=None):
         s = requests.Session()
         if method=='GET':
             # if the param result in the text unescaped try to inject

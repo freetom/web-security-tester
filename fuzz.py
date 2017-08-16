@@ -83,7 +83,7 @@ class Fuzz:
                 self.POST_params[request['requestId']]=request['requestBody']
 
         # update how many requests are necessary to be sent in a whole trace
-        lenNecessaryRequests=sum(self.necessaryRequests.values())
+        self.lenNecessaryRequests=sum(self.necessaryRequests.values())
 
         # filter headers
         self.headers={}
@@ -114,7 +114,7 @@ class Fuzz:
             total+=self.open_redirect.estimate_effort()
 
         #total+=len(self.requests) #count also the requests needed to probe
-        print "Exactly "+str(total)+" requests needed to fuzz.."
+        print "In total, "+str(total)+" requests needed to fuzz.."
 
     def fuzz(self):
         self.probe_offline()    #probe normally to get hints on possible injections
@@ -123,19 +123,20 @@ class Fuzz:
         for request in self.requests:
             self.reached_id=int(request['requestId'])
             print request['url']+' '+request['method']
-            if request['method']=='GET':
-                for param in self.GET_params[request['requestId']]:
-                    if self.xss:
-                        self.xss.test('GET',request['url'],request['requestId'],param)
-                    if self.sqli:
-                        self.sqli.test('GET',request['url'],request['requestId'],param)
-                    if self.xxe:
-                        self.xxe.test('GET',request['url'],request['requestId'],param)
-                    if self.open_redirect:
-                        self.open_redirect.test('GET',request['url'],request['requestId'],param)
+
+            #   test all the GET params anyhow
+            for param in self.GET_params[request['requestId']]:
+                if self.xss:
+                    self.xss.test('GET',request['url'],request['requestId'],param, actualMethod=request['method'])
+                if self.sqli:
+                    self.sqli.test('GET',request['url'],request['requestId'],param, actualMethod=request['method'])
+                if self.xxe:
+                    self.xxe.test('GET',request['url'],request['requestId'],param, actualMethod=request['method'])
+                if self.open_redirect:
+                    self.open_redirect.test('GET',request['url'],request['requestId'],param, actualMethod=request['method'])
 
                 #print self.send_req(requests[i]['requestId'], s, requests[i]['url'], 'GET').text.encode('utf-8')
-            elif request['method']=='POST':
+            if request['method']=='POST':
                 if 'formData' in request['requestBody']:
                     for param in request['requestBody']['formData']:
                         if self.xss:
