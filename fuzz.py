@@ -18,6 +18,7 @@ class Fuzz:
     keepHeaders={'Upgrade-Insecure-Requests', 'User-Agent', 'Accept', 'Accept-Encoding', 'Accept-Language'}
     headers={}  # all the resulting filtered headers per each request
     requests=[] # all the requests
+    responses=[]
     necessaryRequests={} # map requestId -> boolean to memorize if it's a required request
     lenNecessaryRequests=None
     GET_params={}
@@ -68,8 +69,9 @@ class Fuzz:
             raise ValueError('Unsupported method: '+method)
         return None
 
-    def __init__(self, reqs, headers, xss, sqli, xxe, open_redirect):
+    def __init__(self, reqs, headers, responses, xss, sqli, xxe, open_redirect):
         self.requests= copy.deepcopy(reqs)
+        self.responses = copy.deepcopy(responses)
 
         # get params
         for request in self.requests:
@@ -111,11 +113,11 @@ class Fuzz:
         if self.open_redirect:
             total+=self.open_redirect.estimate_effort()
 
-        total+=len(self.requests) #count also the requests needed to probe
+        #total+=len(self.requests) #count also the requests needed to probe
         print "Exactly "+str(total)+" requests needed to fuzz.."
 
     def fuzz(self):
-        self.probe()    #probe normally to get hints on possible injections
+        self.probe_offline()    #probe normally to get hints on possible injections
         self.estimate_effort()
 
         for request in self.requests:
@@ -173,6 +175,53 @@ class Fuzz:
         except:
             raise ValueError('Param not in URL')
 
+    def get_response(self, requestId):
+        for response in self.responses:
+            if response['requestId']==requestId:
+                return response
+        raise ValueError('response with requestId: '+requestId+' not found')
+
+    def probe_offline(self):
+        print "offline-probing.."
+        for request in self.requests:
+            self.GET_hints[request['requestId']]={}
+            self.POST_hints[request['requestId']]={}
+            self.COOKIE_hints[request['requestId']]={}
+            self.HEADER_hints[request['requestId']]={}
+        for request in self.requests:
+            if request['requestId'] not in self.necessaryRequests or self.necessaryRequests[request['requestId']]==False:
+                continue
+            # probe GET/POST parameters
+            if request['method']=='GET':
+                r=self.get_response(request['requestId'])
+                if 'httpResponse' not in r:
+                    print request['requestId']+' has no httpResponse'
+                    response=''
+                else:
+                    response=r['httpResponse'].encode('utf-8')
+
+                for param in self.GET_params[request['requestId']]:
+                    self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
+            elif request['method']=='POST':
+                r=self.get_response(request['requestId'])
+                if 'httpResponse' not in r:
+                    print request['requestId']+' has no httpResponse'
+                    response=''
+                else:
+                    response=r['httpResponse'].encode('utf-8')
+
+                for param in self.GET_params[request['requestId']]:
+                    self.GET_hints[request['requestId']][param]=parseFuzz(response,Fuzz.parseGETVal(request['url'],param))
+                if 'formData' in request['requestBody']:
+                    for param in self.POST_params[request['requestId']]['formData']:
+                        self.POST_hints[request['requestId']][param]=parseFuzz(response,request['requestBody']['formData'][param])
+            else:
+                raise ValueError('request method '+request['method']+" yet unsupported")
+
+            for param in self.GET_hints[request['requestId']]:
+                if (self.GET_hints[request['requestId']][param]&(~1))!=0:
+                    print 'got hint on param: '+param+' '
+    # deprecated
     def probe(self):
         print "probing.."
         s = requests.Session()
@@ -207,9 +256,9 @@ class Fuzz:
                 if h not in Fuzz.keepHeaders:
                     self.HEADER_hints[request['requestId']][h]=parseFuzz(response,s.headers[h])
 
-            for hint in self.GET_hints[request['requestId']]:
-                if not (self.GET_hints[request['requestId']][hint]&1):
-                    print 'got hint '+hint
+            for param in self.GET_hints[request['requestId']]:
+                if (self.GET_hints[request['requestId']][param]&(~1))!=0:
+                    print 'got hint on param: '+param
 
     # sends genuine requests till the request we are fuzzing (to have the original "session-state")
     def catchUp(self, s):

@@ -6,7 +6,7 @@ from vulnerability_class import VulnerabilityClass
 class OpenRedirect(VulnerabilityClass):
     fuzz=None
 
-    testURL='http://www.ciao.com'
+    testURL='https://www.ciao.com'
 
     def __init__(self, fuzz):
         self.fuzz = fuzz

@@ -35,10 +35,11 @@ class SQLI(VulnerabilityClass):
             return True
         else:
             try:
-                pass
                 #should test for SQL error messages in response
-                #if re.search('SQL|error', response.text)!=None:
-                #    print "SQL error shown in page"
+                responseLowercase = response.text.lower()
+                responseLowercase.index('sql')
+                responseLowercase.index('error')
+                print "SQL error shown in request: "+requestId+" on param: "+param
             except:
                 pass
             return False

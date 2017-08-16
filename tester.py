@@ -1,14 +1,18 @@
 import json
 import sys
+import os.path
 
 from fuzz import Fuzz
 
-# should test for XSS,SQLI,open-redirect
-if len(sys.argv) < 3:
-    sys.exit('Usage: %s input_trace input_headers [--sqli] [--xss] [--xxe] [--open-redirect]' % sys.argv[0])
+def file_exists(name):
+    return os.path.isfile(name)
 
-if len(sys.argv) < 4:
-    sys.exit('You have to provide at least a testing option ( --xss, --sqli, --xxe, --open-redirect)')
+# should test for XSS,SQLI,open-redirect
+if len(sys.argv) < 4 or (not file_exists(sys.argv[1])) or (not file_exists(sys.argv[2])) or (not file_exists(sys.argv[3])):
+    sys.exit('Usage: %s <requests_file> <headers_file> <responses_file>  [--sqli] [--xss] [--xxe] [--open-redirect]' % sys.argv[0])
+
+if len(sys.argv) < 5:
+    sys.exit('You have to provide at least one testing option ( --xss, --sqli, --xxe, --open-redirect)')
 
 xss=False
 sqli=False
@@ -30,8 +34,10 @@ with open(sys.argv[1]) as data_file:
     data = json.load(data_file)
 with open(sys.argv[2]) as data_file:
     headers = json.load(data_file)
+with open(sys.argv[3]) as data_file:
+    responses = json.load(data_file)
 
 #pprint(data)
 
-fuzz=Fuzz(data, headers, xss, sqli, xxe, open_redirect)
+fuzz=Fuzz(data, headers, responses, xss, sqli, xxe, open_redirect)
 fuzz.fuzz()
