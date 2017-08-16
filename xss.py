@@ -2,6 +2,7 @@ import requests
 
 from hints import *
 from vulnerability_class import VulnerabilityClass
+from fuzz import *
 
 class XSS(VulnerabilityClass):
     fuzz=None
@@ -40,6 +41,7 @@ class XSS(VulnerabilityClass):
         return False
 
     #   returns True whether a param with a certain hint has to be tested against XSS
+    @staticmethod
     def hasToBeTested(hint):
         # if the param result in the HTTP response unescaped try to inject
         if hint&Hints.NOT_FOUND:
@@ -55,10 +57,10 @@ class XSS(VulnerabilityClass):
 
     # function to test a GET parameter
     def testGET(self, method, url, requestId, param, actualMethod='GET', postData=None):
-        if not hasToBeTested(self.fuzz.GET_hints[requestId][param]):
+        if not XSS.hasToBeTested(self.fuzz.GET_hints[requestId][param]):
             return
 
-        newUrl = Fuzz.substParam(url,param,self.get_XSS_payload(param, self.fuzz.GET_params[requestId][param]))
+        newUrl = fuzz.Fuzz.substParam(url,param,self.get_payload(param, self.fuzz.GET_params[requestId][param]))
         #print param+" "+str(hint)
 
         self.fuzz.catchUp(s)
@@ -72,11 +74,11 @@ class XSS(VulnerabilityClass):
         print param
 
     def testPOST(self, method, url, requestId, param, postData):
-        if not hasToBeTested(self.fuzz.POST_hints[requestId][param]):
+        if not XSS.hasToBeTested(self.fuzz.POST_hints[requestId][param]):
             return
 
         newPost=copy.deepcopy(postData)
-        newPost['formData'][param]=self.get_XSS_payload(param, postData['formData'][param])
+        newPost['formData'][param]=self.get_payload(param, postData['formData'][param])
         self.fuzz.catchUp(s)
         response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost).text.encode('utf-8')
         XSS.verifyXSS(response)
@@ -91,6 +93,7 @@ class XSS(VulnerabilityClass):
     #   actualMethod indicates the actual type of the request
     #   the previous clarification is needed to test GET parameters of POST requests
     def test(self, method, url, requestId, param, postData=None, actualMethod=None):
+        assert not (method=='GET' and actualMethod==None)
         s = requests.Session()
         if method=='GET':
             self.testGET(method, url, requestId, param, actualMethod, postData)

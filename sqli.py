@@ -2,6 +2,7 @@ import requests
 
 from hints import *
 from vulnerability_class import VulnerabilityClass
+from fuzz import *
 
 class SQLI(VulnerabilityClass):
     fuzz = None
@@ -50,7 +51,7 @@ class SQLI(VulnerabilityClass):
         s=requests.Session()
         if method=='GET':
             for i in range(len(SQLI.SQL_inj)):
-                newUrl = Fuzz.substParam(url,param,self.get_SQL_payload(i))
+                newUrl = fuzz.Fuzz.substParam(url,param,self.get_payload(i))
                 self.fuzz.catchUp(s)
                 print "Attempting GET SQLI on "+param
                 response = self.fuzz.send_req(requestId, s, newUrl, 'GET')
@@ -60,7 +61,7 @@ class SQLI(VulnerabilityClass):
         elif method=='POST':
             for i in range(len(self.fuzz.SQL_inj)):
                 newPost=copy.deepcopy(postData)
-                newPost['formData'][param]=self.get_SQL_payload(i)
+                newPost['formData'][param]=self.get_payload(i)
                 self.fuzz.catchUp(s)
                 print "Attempting GET SQLI on "+param
                 response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost)

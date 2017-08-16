@@ -267,10 +267,11 @@ class Fuzz:
         for request in self.requests:
             if int(request['requestId'])<self.reached_id:
                 if request['method']=='GET':
-                    response = self.send_req(request['requestId'], s,request['url'], 'GET').text.encode('utf-8')
+                    r = self.send_req(request['requestId'], s,request['url'], 'GET')
                 elif request['method']=='POST':
-                    response = self.send_req(request['requestId'], s,request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
-                XSS.verify(response)
+                    r = self.send_req(request['requestId'], s,request['url'], 'POST', post = request['requestBody'])
+                if hasattr(r,'text'):
+                    XSS.verify(r.text.encode('utf-8'))
             else:
                 break
 
@@ -282,8 +283,9 @@ class Fuzz:
         while i<len(self.requests):
             request=self.requests[i]
             if request['method']=='GET':
-                response= self.send_req(request['requestId'], s, request['url'],'GET').text.encode('utf-8')
-            elif requests[i]['method']=='POST':
-                response= self.send_req(request['requestId'], s, request['url'], 'POST', post = request['requestBody']).text.encode('utf-8')
-            XSS.verify(response)
+                r = self.send_req(request['requestId'], s, request['url'],'GET')
+            elif request['method']=='POST':
+                r = self.send_req(request['requestId'], s, request['url'], 'POST', post = request['requestBody'])
+            if hasattr(r,'text'):
+                XSS.verify(r.text.encode('utf-8'))
             i+=1

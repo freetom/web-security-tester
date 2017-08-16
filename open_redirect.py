@@ -2,6 +2,7 @@ import requests
 
 from hints import *
 from vulnerability_class import VulnerabilityClass
+import fuzz
 
 class OpenRedirect(VulnerabilityClass):
     fuzz=None
@@ -21,37 +22,48 @@ class OpenRedirect(VulnerabilityClass):
         print str(total)+" requests required to test for open-redirects"
         return total
 
-    def get_payload():
+    def get_payload(self):
         return OpenRedirect.testURL
 
     @staticmethod
     def verify(response):
         if len(response.history)>0:
-            if OpenRedirect.testURL in response.url:
+            if self.get_payload() in response.url:
                 print "FOUND OPEN REDIRECT"
                 exit()
 
-    def testOpenRedirect(self, url, param, method, requestId, post_=None):
+    def testOpenRedirect(self, url, param, method, requestId, actualMethod=None, post_=None):
+        assert not (method=='GET' and actualMethod==None)
         #test for Open-redirect
         s=requests.Session()
         self.fuzz.catchUp(s)
-        newUrl = Fuzz.substParam(url,param,OpenRedirect.testURL)
-        response = self.fuzz.send_req(requestId, s, newUrl, method)
+        if method=='GET':
+            newUrl = fuzz.Fuzz.substParam(url,param,self.get_payload())
+            response = self.fuzz.send_req(requestId, s, newUrl, actualMethod)
+        elif method=='POST':
+            newPost=copy.deepcopy(post_)
+            newPost['formData'][param]=self.get_payload()
+            response = self.fuzz.send_req(requestId, s, url, 'POST')
+        else:
+            raise ValueError('method: '+method+' yet unsupported')
         OpenRedirect.verify(response)
         self.fuzz.tillTheEnd(s) #follow the remaining requests to check for the redirect
+
+    @staticmethod
+    def hasToBeTested(hint):
+        if hint&Hints.URL:
+            print "FOUND URL"
+            return True
+        return False
 
     def test(self, method, url, requestId, param, postData=None, actualMethod=None):
         s = requests.Session()
         if method=='GET':
-            # if the param result in the text unescaped try to inject
-            hint = self.fuzz.GET_hints[requestId][param]
-            #print param+" "+str(hint)
-            if hint&Hints.NOT_FOUND:
+            if not OpenRedirect.hasToBeTested(self.fuzz.GET_hints[requestId][param]):
                 return
-            elif not (hint&Hints.FOUND_ESCAPED):
-                if hint&Hints.URL:
-                    print "FOUND URL"
-                    self.testOpenRedirect(url, param, 'GET', requestId)
+            self.testOpenRedirect(url, param, 'GET', requestId, actualMethod, postData)
 
         elif method=='POST':
-            pass
+            if not OpenRedirect.hasToBeTested(self.fuzz.POST_hints[requestId][param]):
+                return
+            self.testOpenRedirect(url, param, 'POST', requestId, post_=postData)

@@ -2,6 +2,7 @@ import requests
 
 from hints import *
 from vulnerability_class import VulnerabilityClass
+from fuzz import *
 
 class XXE(VulnerabilityClass):
 
@@ -40,14 +41,14 @@ class XXE(VulnerabilityClass):
     def test(self, method, url, requestId, param, postData=None, actualMethod=None):
         s=requests.Session()
         if method=='GET':
-            newUrl = Fuzz.substParam(url,param,self.get_XXE_payload())
+            newUrl = fuzz.Fuzz.substParam(url,param,self.get_payload())
             self.fuzz.catchUp(s)
             response = self.fuzz.send_req(requestId, s, newUrl, 'GET')
             print "Attempting GET XXE on "+param
             self.verifyXXE(response, param, requestId)
         elif method=='POST':
             newPost=copy.deepcopy(postData)
-            newPost['formData'][param]=self.get_XXE_payload()
+            newPost['formData'][param]=self.get_payload()
             self.fuzz.catchUp(s)
             response = self.fuzz.send_req(requestId, s, url, 'POST', post=newPost)
             print "Attempting GET XXE on "+param
