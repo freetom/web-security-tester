@@ -23,7 +23,7 @@ class OpenRedirect(VulnerabilityClass):
     @staticmethod
     def verifyRedirect(response):
         if len(response.history)>0:
-            if XSS.testURL in response.url:
+            if OpenRedirect.testURL in response.url:
                 print "FOUND OPEN REDIRECT"
                 exit()
 
@@ -31,9 +31,9 @@ class OpenRedirect(VulnerabilityClass):
         #test for Open-redirect
         s=requests.Session()
         self.fuzz.catchUp(s)
-        newUrl = Fuzz.substParam(url,param,XSS.testURL)
+        newUrl = Fuzz.substParam(url,param,OpenRedirect.testURL)
         response = self.fuzz.send_req(requestId, s, newUrl, method)
-        XSS.verifyRedirect(response)
+        OpenRedirect.verifyRedirect(response)
         self.fuzz.tillTheEnd(s) #follow the remaining requests to check for the redirect
 
     def test(self, method, url, requestId, param, postData=None):

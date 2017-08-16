@@ -220,7 +220,7 @@ class Fuzz:
 
             for param in self.GET_hints[request['requestId']]:
                 if (self.GET_hints[request['requestId']][param]&(~1))!=0:
-                    print 'got hint on param: '+param+' '
+                    print 'got hint in requestId: '+request['requestId']+' on param: '+param+' -> '+format(self.GET_hints[request['requestId']][param], '08X')
     # deprecated
     def probe(self):
         print "probing.."
